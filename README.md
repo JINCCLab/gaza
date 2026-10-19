@@ -40,7 +40,7 @@ python scripts/smoke_e2e.py
 3. In Clerk Dashboard, set each user’s `publicMetadata.role` to `admin` | `buyer` | `contributor`.
 4. Restart API + UI → `/sign-in` shows the Clerk widget.
 
-See [docs/auth-clerk.md](./docs/auth-clerk.md) for why Clerk over Supabase Auth.
+See [docs/auth-clerk.md](./docs/auth-clerk.md) for why Clerk over Supabase Auth, roles via `publicMetadata.role`, and **production** Netlify + FastAPI env vars / redirect URLs. Frontend deploy uses [`frontend/netlify.toml`](./frontend/netlify.toml) (set Netlify UI Base directory = `frontend`).
 
 Full click-path: [docs/mvp-slice-runbook.md](./docs/mvp-slice-runbook.md).
 

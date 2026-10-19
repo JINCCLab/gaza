@@ -37,6 +37,18 @@ Preserved: `admin` | `buyer` | `contributor`.
 
 Local users link via `users.auth_subject` (Clerk user id or `dev:<email>`).
 
+### Setting `publicMetadata.role` (Dashboard)
+
+1. Open [Clerk Dashboard](https://dashboard.clerk.com) → your application → **Users**.
+2. Open the user → **Metadata** (or User → Public metadata).
+3. Set JSON (exactly one role string):
+
+```json
+{ "role": "admin" }
+```
+
+Allowed values: `"admin"` | `"buyer"` | `"contributor"`. Save. Sign out/in (or refresh session) so the API re-reads metadata (Backend API enrichment on first provision).
+
 ## Run with Clerk keys
 
 1. Copy [`.env.example`](../.env.example) → `backend/.env` and `frontend/.env.local`.
@@ -51,6 +63,52 @@ Local users link via `users.auth_subject` (Clerk user id or `dev:<email>`).
 2. Start API + UI as usual.
 3. Open `/sign-in` → pick seeded persona → Bearer JWT stored in `localStorage`.
 4. Smoke: `python scripts/smoke_e2e.py` (uses `/api/auth/dev-login`).
+
+## Production setup (no secrets in git)
+
+Paste keys only in host dashboards / local `.env` files. Never commit real `sk_` / `pk_` values.
+
+### 1. Clerk application
+
+1. Create an app at https://dashboard.clerk.com (Development instance for staging; Production for live).
+2. Copy **Publishable key** + **Secret key**.
+3. Copy **Frontend API / Issuer** URL (`https://….clerk.accounts.dev` or production Clerk domain).
+4. **Paths & URLs** → allow your Netlify (and localhost) origins + redirect URLs — see table in [`.env.example`](../.env.example).
+5. Create users; set `publicMetadata.role` as above.
+
+### 2. Netlify (Next.js frontend)
+
+[`frontend/netlify.toml`](../frontend/netlify.toml) configures the Next.js build + `@netlify/plugin-nextjs`. In the Netlify UI, set **Base directory** (or Package directory) to `frontend`. Do not also set `[build].base` in a root `netlify.toml` — that doubles the path (`frontend/frontend`) and breaks Deploy Previews.
+
+| Variable | Where | Notes |
+|----------|--------|--------|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Netlify env | Same as Clerk publishable key |
+| `NEXT_PUBLIC_API_URL` | Netlify env | Public FastAPI base, e.g. `https://api.example.com` (no trailing slash) |
+| `CLERK_SECRET_KEY` | Optional on Netlify | Not required for current client-only Clerk widget; add if you enable `clerkMiddleware` later |
+
+Site settings → Environment variables → add for Production (and Deploy Previews if you want Clerk on previews). Redeploy after changing `NEXT_PUBLIC_*`.
+
+### 3. FastAPI host
+
+| Variable | Required | Notes |
+|----------|----------|--------|
+| `AUTH_MODE` | Recommended `clerk` | Fail closed on public API |
+| `CLERK_SECRET_KEY` | Yes | Verifies session JWT + Backend API user enrich |
+| `CLERK_ISSUER` or `CLERK_JWKS_URL` | Yes | JWKS for Bearer verification |
+| `CLERK_PUBLISHABLE_KEY` | Optional | Documented for parity with local `.env` |
+| `DATABASE_URL` | Recommended | Postgres when leaving demo SQLite |
+| `DEV_JWT_SECRET` | N/A if `clerk` | Do not rely on dev login in production |
+
+Example bind: `uvicorn app.main:app --host 0.0.0.0 --port $PORT` from `backend/` with deps installed.
+
+### 4. Verify login
+
+1. `GET {API}/api/health` → `stubbed` should mention `auth_clerk_mode_active` (not the dev fallback string).
+2. `GET {API}/api/auth/config` → effective mode `clerk`.
+3. Open `https://YOUR-SITE/sign-in` → Clerk widget (not persona cards).
+4. Sign in → `GET /api/me` with Bearer succeeds; role matches `publicMetadata`.
+
+Korean founder checklist (create app → keys → env → deploy → verify): project store `docs/clerk-deploy-setup.md`.
 
 ## API helpers
 

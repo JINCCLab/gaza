@@ -1,0 +1,17 @@
+# Next.js App Router app (monorepo package).
+# Set Netlify UI → Project configuration → Build settings:
+#   Base directory = frontend
+#   (or Package directory = frontend)
+# Do NOT set [build].base here — if the UI already uses Base=frontend,
+# a root/base=frontend combo resolves to frontend/frontend and Deploy Preview fails.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Secrets: Netlify UI → Environment variables (never commit sk_/pk_).
+#   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+#   NEXT_PUBLIC_API_URL   # public FastAPI origin, no trailing slash

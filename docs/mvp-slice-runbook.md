@@ -7,7 +7,7 @@ How to run the coding slice and walk OSINT and CV happy paths (same platform).
 - Python **3.9+** (backend uses `Optional`/`List`/`Dict` — FastAPI-safe on 3.9; no PEP 604 `X | Y`)
 - Node 20+
 - Repo branch with `backend/` + `frontend/`
-- Optional: Clerk application keys (see [auth-clerk.md](./auth-clerk.md))
+- Optional: Clerk application keys (see [auth-clerk.md](./auth-clerk.md); production checklist in project store `docs/clerk-deploy-setup.md`)
 
 ## Start services
 
