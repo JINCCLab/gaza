@@ -129,12 +129,13 @@ CV category whitelist (defaults): `parade_public`, `museum_exhibit`, `official_p
 
 ## Click path — OSINT
 
-1. `/sign-in` → **admin** → Org KYB 승인. (ops metrics: `/admin/analytics`)
-2. **buyer** → template `osint_label` → Create & submit for review.
-3. **admin** → 캠페인 사전승인 → 승인/게시.
-4. **contributor** → Reuters (allowlisted) URL + labels → Submit → (`in_review` if async) → `needs_review`.
-5. **admin** → 수락 → credits.
-6. **buyer** → Export / Download JSONL.
+1. `/sign-in` → **buyer** → KYB stub packet (legal name + registration id + URL and/or file upload).
+2. **admin** → Org KYB 문서 확인 → 승인 (KO 메모 가능). (ops metrics: `/admin/analytics`)
+3. **buyer** → template `osint_label` → Create & submit for review.
+4. **admin** → 캠페인 사전승인 → 승인/게시.
+5. **contributor** → Reuters (allowlisted) URL + labels → Submit → (`in_review` if async) → `needs_review`.
+6. **admin** → 수락 → credits.
+7. **buyer** → Export / Download JSONL.
 
 ## Click path — CV
 
@@ -158,7 +159,7 @@ python scripts/smoke_e2e.py
 # python scripts/smoke_e2e.py http://127.0.0.1:8000
 ```
 
-Covers OSINT allowlist reject + accept/export, and CV upload + synthetic reject + duplicate reject + accept/export. Works on SQLite or Postgres equally (same API). Async mode: script polls until verify leaves `submitted`/`in_review`.
+Covers KYB stub packet upload + admin approve, OSINT allowlist reject + accept/export, and CV upload + synthetic reject + duplicate reject + accept/export. Works on SQLite or Postgres equally (same API). Async mode: script polls until verify leaves `submitted`/`in_review`.
 
 ## Allowlist v0
 
@@ -177,12 +178,14 @@ Seeded from `backend/app/allowlist_v0.py` (~30 public EN hosts). Online-only; no
 - Postgres schema via **Alembic** (`alembic upgrade head`); SQLite local `create_all`
 - Shared manual review queue, CreditLedger, Dataset JSONL export (proxy + optional presign)
 - Admin analytics summary: `GET /api/admin/analytics` + UI `/admin/analytics` (campaign status, submission outcomes, accept/reject rates, credits, per-campaign counts)
+- KYB document **stub**: buyer `POST /api/orgs/{id}/kyb/packet` (+ optional `/kyb/upload`); admin views packet + approve/reject with KO memo (`POST .../kyb`)
 
 **Stubbed / deferred**
 
-- KYB document upload; ML deepfake / perceptual hash
+- Real KYB / ID-verification vendor; ML deepfake / perceptual hash
 - On-chain token; fiat automation; full BI / charting
 - Per-campaign allowlist subset
+- Ontology / schema work (next product track)
 
 ## Safety notes
 

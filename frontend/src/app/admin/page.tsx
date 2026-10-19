@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, type Campaign, type Org, type Submission } from "@/lib/api";
+import { api, getAccessToken, type Campaign, type Org, type Submission } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 export default function AdminPage() {
@@ -18,6 +18,7 @@ export default function AdminPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [memo, setMemo] = useState("");
+  const [kybMemo, setKybMemo] = useState("파일럿 KYB 승인");
 
   const load = useCallback(async () => {
     if (!user || user.role !== "admin") return;
@@ -79,11 +80,21 @@ export default function AdminPage() {
 
       <div className="grid two">
         <div className="panel">
-          <h3>1. Org KYB</h3>
+          <h3>1. Org KYB (문서 스텁)</h3>
+          <p className="muted">
+            Buyer가 제출한 회사명·등록번호·문서 URL/업로드를 확인 후 승인/거절. ID 벤더 검증 없음
+            (스텁).
+          </p>
+          <label>KYB 내부 메모 (KO)</label>
+          <input
+            value={kybMemo}
+            onChange={(e) => setKybMemo(e.target.value)}
+            placeholder="승인/거절 메모…"
+          />
           <table>
             <thead>
               <tr>
-                <th>Org</th>
+                <th>Org / Packet</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -94,6 +105,55 @@ export default function AdminPage() {
                   <td>
                     {o.name}
                     <div className="muted mono">{o.intended_use?.slice(0, 80)}</div>
+                    {o.kyb_packet_ready ? (
+                      <div className="muted" style={{ marginTop: "0.35rem" }}>
+                        <span className="badge ok">packet ready</span>{" "}
+                        <span className="mono">
+                          {o.kyb_legal_name} · {o.kyb_registration_id}
+                        </span>
+                        {o.kyb_document_url && (
+                          <div className="mono">
+                            URL:{" "}
+                            <a href={o.kyb_document_url} target="_blank" rel="noreferrer">
+                              {o.kyb_document_url.slice(0, 48)}
+                            </a>
+                          </div>
+                        )}
+                        {o.kyb_document_storage_key && (
+                          <div className="mono row">
+                            File: {o.kyb_document_filename || o.kyb_document_storage_key}{" "}
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={async () => {
+                                const token = await getAccessToken();
+                                const res = await fetch(api.kybDocumentUrl(o.id), {
+                                  headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                });
+                                if (!res.ok) {
+                                  setErr(`KYB download failed: ${res.status}`);
+                                  return;
+                                }
+                                const blob = await res.blob();
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = o.kyb_document_filename || "kyb-document";
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                            >
+                              다운로드
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="muted">패킷 미제출 (메타+문서 필요)</div>
+                    )}
+                    {o.kyb_notes && (
+                      <div className="muted">메모: {o.kyb_notes}</div>
+                    )}
                   </td>
                   <td>
                     <span
@@ -114,7 +174,7 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={async () => {
-                            await api.decideKyb(o.id, true, "파일럿 KYB 승인");
+                            await api.decideKyb(o.id, true, kybMemo || "파일럿 KYB 승인");
                             setMsg(`Org #${o.id} KYB approved`);
                             await load();
                             await refresh();
@@ -126,7 +186,7 @@ export default function AdminPage() {
                           type="button"
                           className="danger"
                           onClick={async () => {
-                            await api.decideKyb(o.id, false, "자료 부족");
+                            await api.decideKyb(o.id, false, kybMemo || "자료 부족");
                             setMsg(`Org #${o.id} KYB rejected`);
                             await load();
                           }}
