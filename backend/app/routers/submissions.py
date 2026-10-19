@@ -15,6 +15,7 @@ from app.schemas import (
 )
 from app.services.credits import grant_reward
 from app.services.media import resolve_storage_key
+from app.services.queue import enqueue_verification, want_async_verify
 from app.services.verification import run_automated_stages
 
 router = APIRouter(prefix="/api", tags=["submissions"])
@@ -81,7 +82,30 @@ def create_submission(
     db.add(submission)
     db.flush()
 
+    # Prefer Redis worker when VERIFY_MODE allows; fall back to sync if Redis is down.
+    # Commit before enqueue so the worker can load the row (avoid race).
+    if want_async_verify():
+        submission.verification_status = "in_review"
+        meta_async = dict(submission.metadata_json or {})
+        meta_async["verify_path"] = "async"
+        submission.metadata_json = meta_async
+        db.commit()
+        db.refresh(submission)
+        if enqueue_verification(submission.id):
+            return submission
+        # Redis down after commit — run the same pipeline inline.
+        run_automated_stages(db, submission, campaign)
+        meta_sync = dict(submission.metadata_json or {})
+        meta_sync["verify_path"] = "sync_fallback"
+        submission.metadata_json = meta_sync
+        db.commit()
+        db.refresh(submission)
+        return submission
+
     run_automated_stages(db, submission, campaign)
+    meta_sync = dict(submission.metadata_json or {})
+    meta_sync["verify_path"] = "sync"
+    submission.metadata_json = meta_sync
     db.commit()
     db.refresh(submission)
     return submission

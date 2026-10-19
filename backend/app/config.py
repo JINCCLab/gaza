@@ -14,6 +14,7 @@ EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 AuthMode = Literal["auto", "clerk", "dev"]
+VerifyMode = Literal["auto", "sync", "async"]
 
 
 class Settings(BaseSettings):
@@ -30,6 +31,12 @@ class Settings(BaseSettings):
     media_max_bytes: int = 8 * 1024 * 1024
     media_allowed_types: str = "image/jpeg,image/png,image/webp,video/mp4"
 
+    # Verification — sync blocks the request; async enqueues to Redis worker.
+    # auto: async when REDIS_URL is reachable, else sync. VERIFY_MODE=sync forces inline.
+    verify_mode: VerifyMode = "auto"
+    redis_url: Optional[str] = None  # e.g. redis://127.0.0.1:6379/0
+    verify_queue_key: str = "verify:jobs"
+
     # Auth — prefer Clerk when keys are present (AUTH_MODE=auto).
     auth_mode: AuthMode = "auto"
     clerk_secret_key: Optional[str] = None
@@ -40,7 +47,14 @@ class Settings(BaseSettings):
     dev_jwt_secret: str = "phase0-dev-jwt-secret-change-me"
     dev_jwt_ttl_seconds: int = 60 * 60 * 12
 
-    @field_validator("clerk_secret_key", "clerk_publishable_key", "clerk_issuer", "clerk_jwks_url", mode="before")
+    @field_validator(
+        "clerk_secret_key",
+        "clerk_publishable_key",
+        "clerk_issuer",
+        "clerk_jwks_url",
+        "redis_url",
+        mode="before",
+    )
     @classmethod
     def empty_str_to_none(cls, v: object) -> object:
         if isinstance(v, str) and not v.strip():
