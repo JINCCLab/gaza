@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import SessionLocal
 from app.db_migrate import apply_schema
-from app.routers import allowlist, auth, campaigns, datasets, media, orgs, submissions
+from app.routers import allowlist, analytics, auth, campaigns, datasets, media, orgs, submissions
 from app.schemas import HealthOut
 from app.seed import seed_demo
 from app.services.queue import effective_verify_path, redis_status
@@ -13,7 +13,7 @@ from app.services.storage import ensure_bucket, storage_health
 app = FastAPI(
     title="data_platform Phase-0 API",
     description="Phase-0 dual wedge: OSINT + CV templates — KYB → campaign → submit → verify → credit → export",
-    version="0.6.0",
+    version="0.7.0",
 )
 
 app.add_middleware(
@@ -31,6 +31,7 @@ app.include_router(submissions.router)
 app.include_router(datasets.router)
 app.include_router(allowlist.router)
 app.include_router(media.router)
+app.include_router(analytics.router)
 
 
 @app.on_event("startup")
@@ -59,6 +60,7 @@ def health() -> HealthOut:
         "no_onchain_token",
         "cv_synthetic_deepfake_ml_stub",
         "allowlist_v0_founder_may_expand",
+        "analytics_phase0_summary_only",
     ]
     if s_backend == "local":
         stubbed.insert(0, "storage_local_disk_set_s3_for_object_storage")

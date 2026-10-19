@@ -221,3 +221,18 @@ td {
 .stack > * + * {
   margin-top: 0.75rem;
 }
+
+.bar-track {
+  height: 0.55rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  min-width: 0;
+}

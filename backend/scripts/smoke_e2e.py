@@ -337,6 +337,18 @@ def main() -> None:
     unauth = c.get("/api/me")
     assert unauth.status_code == 401, unauth.text
 
+    # Admin analytics — founder ops summary (admin-only)
+    forbidden = c.get("/api/admin/analytics", headers=buyer_h)
+    assert forbidden.status_code == 403, forbidden.text
+    analytics = c.get("/api/admin/analytics", headers=admin_h)
+    assert analytics.status_code == 200, analytics.text
+    a = analytics.json()
+    assert a["submissions_total"] >= 2, a
+    assert a["funnel"]["accepted"] >= 2, a
+    assert a["credits"]["rewards_granted_total"] >= 22.0, a
+    assert isinstance(a["campaigns_by_status"], list), a
+    assert isinstance(a["per_campaign"], list) and len(a["per_campaign"]) >= 1, a
+
     print(
         json.dumps(
             {
@@ -350,6 +362,13 @@ def main() -> None:
                 "osint": osint,
                 "cv": cv,
                 "credits": me["credit_balance"],
+                "analytics": {
+                    "campaigns_total": a["campaigns_total"],
+                    "submissions_total": a["submissions_total"],
+                    "accept_rate": a["funnel"]["accept_rate"],
+                    "rewards_granted": a["credits"]["rewards_granted_total"],
+                    "per_campaign": len(a["per_campaign"]),
+                },
                 "allowlist_enabled": len(enabled),
                 "roles": {
                     "admin": admin["role"],

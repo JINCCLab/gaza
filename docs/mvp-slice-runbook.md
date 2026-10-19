@@ -129,7 +129,7 @@ CV category whitelist (defaults): `parade_public`, `museum_exhibit`, `official_p
 
 ## Click path — OSINT
 
-1. `/sign-in` → **admin** → Org KYB 승인.
+1. `/sign-in` → **admin** → Org KYB 승인. (ops metrics: `/admin/analytics`)
 2. **buyer** → template `osint_label` → Create & submit for review.
 3. **admin** → 캠페인 사전승인 → 승인/게시.
 4. **contributor** → Reuters (allowlisted) URL + labels → Submit → (`in_review` if async) → `needs_review`.
@@ -176,11 +176,12 @@ Seeded from `backend/app/allowlist_v0.py` (~30 public EN hosts). Online-only; no
 - S3-compatible object storage (MinIO profile / AWS via `S3_*`); local disk fallback
 - Postgres schema via **Alembic** (`alembic upgrade head`); SQLite local `create_all`
 - Shared manual review queue, CreditLedger, Dataset JSONL export (proxy + optional presign)
+- Admin analytics summary: `GET /api/admin/analytics` + UI `/admin/analytics` (campaign status, submission outcomes, accept/reject rates, credits, per-campaign counts)
 
 **Stubbed / deferred**
 
 - KYB document upload; ML deepfake / perceptual hash
-- On-chain token; fiat automation; analytics dashboards
+- On-chain token; fiat automation; full BI / charting
 - Per-campaign allowlist subset
 
 ## Safety notes
