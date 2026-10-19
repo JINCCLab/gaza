@@ -1,5 +1,12 @@
-# Optional PostgreSQL for local/prod-like runs.
-# Default demo uses SQLite (see backend DATABASE_URL).
+# Local / prod-like stack: PostgreSQL + FastAPI (+ optional Next.js UI).
+# Default demo without Compose still uses SQLite (DATABASE_URL unset).
+#
+#   docker compose up --build db api
+#   docker compose --profile ui up --build
+#
+# Schema: startup Base.metadata.create_all (+ SQLite-only column patches).
+# No Alembic yet — see docs/mvp-slice-runbook.md § Database.
+
 services:
   db:
     image: postgres:16-alpine
@@ -11,6 +18,42 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dataplat -d data_platform"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://dataplat:dataplat@db:5432/data_platform
+      AUTH_MODE: dev
+      DEV_JWT_SECRET: phase0-dev-jwt-secret-change-me
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - api_data:/repo/data
+      - api_exports:/repo/exports
+
+  frontend:
+    profiles: ["ui"]
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - api
 
 volumes:
   pgdata:
+  api_data:
+  api_exports:
