@@ -125,6 +125,8 @@ def smoke_osint(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) 
     ).json()
     assert camp["status"] == "pending_review", camp
     assert camp["data_type"] == "osint_label", camp
+    assert camp.get("ontology_id") == "osint_label", camp
+    assert camp.get("schema_version") == "0.1.0", camp
 
     camp = c.post(
         f"/api/campaigns/{camp['id']}/decide",
@@ -132,6 +134,25 @@ def smoke_osint(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) 
         json={"approve": True, "notes": "ok"},
     ).json()
     assert camp["status"] == "active", camp
+
+    # Ontology enum mismatch → schema_policy reject
+    bad_schema = c.post(
+        "/api/submissions",
+        headers=contrib_h,
+        json={
+            "campaign_id": camp["id"],
+            "source_url": "https://www.reuters.com/smoke-bad-enum",
+            "labels": {
+                "event_type": "not_a_valid_event",
+                "location_public": "Washington, DC",
+                "event_time": "2026-04-01",
+                "equipment_type": "aircraft",
+            },
+        },
+    ).json()
+    bad_schema = wait_verified(c, contrib_h, bad_schema)
+    assert bad_schema["verification_status"] == "rejected", bad_schema
+    assert bad_schema["reject_reason"] == "schema_policy", bad_schema
 
     bad = c.post(
         "/api/submissions",
@@ -185,6 +206,9 @@ def smoke_osint(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) 
         "submission_id": sub["id"],
         "dataset_id": ds["id"],
         "item_count": ds["item_count"],
+        "ontology_id": camp.get("ontology_id"),
+        "schema_version": camp.get("schema_version"),
+        "schema_reject_ok": True,
     }
 
 
@@ -205,6 +229,8 @@ def smoke_cv(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) -> 
     assert camp["data_type"] == "cv_media", camp
     assert camp["data_class"] == "public_scene_cv", camp
     assert camp["synthetic_allowed"] is False, camp
+    assert camp.get("ontology_id") == "cv_media", camp
+    assert camp.get("schema_version") == "0.1.0", camp
     assert "parade_public" in (camp.get("requirements_json") or {}).get("categories", []), camp
 
     camp = c.post(
@@ -375,6 +401,15 @@ def main() -> None:
     enabled = [h for h in hosts if h.get("enabled", True)]
     assert len(enabled) >= 15, f"expected allowlist v0 seed, got {len(enabled)}"
 
+    # Ontology registry (auth required)
+    onto_list = c.get("/api/ontology", headers=admin_h)
+    assert onto_list.status_code == 200, onto_list.text
+    onto_rows = onto_list.json()
+    assert any(r.get("ontology_id") == "osint_label" for r in onto_rows), onto_rows
+    onto_detail = c.get("/api/ontology/osint_label?version=0.1.0", headers=buyer_h)
+    assert onto_detail.status_code == 200, onto_detail.text
+    assert "event_type" in (onto_detail.json().get("fields") or {}), onto_detail.json()
+
     osint = smoke_osint(c, admin_h, buyer_h, contrib_h)
     cv = smoke_cv(c, admin_h, buyer_h, contrib_h)
 
@@ -421,6 +456,11 @@ def main() -> None:
                     "packet_ready": kyb.get("kyb_packet_ready"),
                     "legal_name": kyb.get("kyb_legal_name"),
                     "registration_id": kyb.get("kyb_registration_id"),
+                },
+                "ontology": {
+                    "versions": len(onto_rows),
+                    "osint_pin": f"{osint.get('ontology_id')}@{osint.get('schema_version')}",
+                    "schema_reject_ok": osint.get("schema_reject_ok"),
                 },
                 "allowlist_enabled": len(enabled),
                 "roles": {

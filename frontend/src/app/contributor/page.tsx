@@ -5,8 +5,14 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Campaign, type Ledger, type Submission } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
-const EVENT_TYPES = ["military_exercise", "equipment_display", "official_briefing"];
-const EQUIPMENT = ["aircraft", "naval", "ground", "unknown"];
+const EVENT_TYPES = [
+  "military_exercise",
+  "equipment_display",
+  "official_briefing",
+  "port_call_public",
+  "airshow_public",
+];
+const EQUIPMENT = ["aircraft", "naval", "ground", "missile_system_public", "unknown"];
 const CV_CATEGORIES = [
   "parade_public",
   "museum_exhibit",

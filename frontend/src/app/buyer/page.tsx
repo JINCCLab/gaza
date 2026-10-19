@@ -77,7 +77,12 @@ export default function BuyerPage() {
   return (
     <div className="stack">
       <div className="panel">
-        <h2>Buyer — Organization & campaigns</h2>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <h2>Buyer — Organization & campaigns</h2>
+          <Link href="/admin/ontology" className="btn secondary" style={{ textDecoration: "none" }}>
+            View ontology
+          </Link>
+        </div>
         {org ? (
           <p>
             Org: <strong>{org.name}</strong>{" "}

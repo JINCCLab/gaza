@@ -1,0 +1,42 @@
+{
+  "ontology_id": "cv_media",
+  "schema_version": "0.1.0",
+  "data_type": "cv_media",
+  "title": "Phase-0 public-scene CV annotations",
+  "description": "Versioned annotation schema for whitelist public scenes (parade, museum, official promo, airshow, open viewing). No conflict-zone field collection.",
+  "safety": {
+    "corridor": "online_only_en",
+    "forbidden_themes": [
+      "civilian_targeting",
+      "individual_pii",
+      "conflict_zone_field_collection",
+      "sensitive_person_closeup_required"
+    ],
+    "notes_en": "Public scenes only. synthetic_allowed defaults false."
+  },
+  "required_label_fields": ["category", "caption"],
+  "required_submission_fields": [],
+  "fields": {
+    "category": {
+      "type": "enum",
+      "values": [
+        "parade_public",
+        "museum_exhibit",
+        "official_promo",
+        "public_airshow",
+        "open_training_viewing"
+      ],
+      "description": "Public scene category whitelist"
+    },
+    "caption": {
+      "type": "string",
+      "min_length": 3,
+      "max_length": 2000
+    },
+    "bboxes": {
+      "type": "array",
+      "optional": true,
+      "description": "Normalized bboxes x,y,w,h in 0–1"
+    }
+  }
+}

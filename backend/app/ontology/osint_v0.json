@@ -1,0 +1,71 @@
+{
+  "ontology_id": "osint_label",
+  "schema_version": "0.1.0",
+  "data_type": "osint_label",
+  "title": "Phase-0 structured OSINT labels",
+  "description": "Versioned label schema for public open-source reporting only. Online EN hosts; no conflict-zone field collection; no civilian-targeting or PII fields.",
+  "safety": {
+    "corridor": "online_only_en",
+    "forbidden_themes": [
+      "civilian_targeting",
+      "individual_pii",
+      "conflict_zone_field_collection",
+      "geocoord_precision_below_city"
+    ],
+    "notes_en": "Labels describe public events from allowlisted news/official sources. Do not encode targeting intent, named private individuals, or sub-city coordinates."
+  },
+  "required_label_fields": [
+    "event_type",
+    "location_public",
+    "event_time",
+    "equipment_type"
+  ],
+  "required_submission_fields": ["source_url"],
+  "fields": {
+    "event_type": {
+      "type": "enum",
+      "values": [
+        "military_exercise",
+        "equipment_display",
+        "official_briefing",
+        "port_call_public",
+        "airshow_public"
+      ],
+      "description": "Public event class from open reporting"
+    },
+    "location_public": {
+      "type": "string",
+      "min_length": 2,
+      "max_length": 256,
+      "description": "Public city/region or named public facility only"
+    },
+    "location_granularity": {
+      "type": "enum",
+      "values": ["public_city_region", "public_facility_named", "country_only"],
+      "campaign_default": "public_city_region",
+      "description": "Campaign-level granularity expectation (not a submission label)"
+    },
+    "event_time": {
+      "type": "string",
+      "min_length": 4,
+      "max_length": 64,
+      "description": "Public event date/time as reported (ISO date preferred)"
+    },
+    "equipment_type": {
+      "type": "enum",
+      "values": ["aircraft", "naval", "ground", "missile_system_public", "unknown"],
+      "description": "Platform/equipment category visible in public reporting"
+    },
+    "source_url": {
+      "type": "url",
+      "required": true,
+      "description": "Allowlisted public EN news or official host URL"
+    },
+    "notes": {
+      "type": "string",
+      "optional": true,
+      "max_length": 2000,
+      "description": "Optional free-text; no PII"
+    }
+  }
+}

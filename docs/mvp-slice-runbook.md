@@ -122,8 +122,10 @@ Roles: **admin** / **buyer** / **contributor**. APIs require `Authorization: Bea
 
 | `data_type` | `data_class` | Contributor payload | Notes |
 |-------------|--------------|---------------------|--------|
-| `osint_label` | `structured_osint` | allowlisted source URL + event/location/time/equipment labels | Phase-0 first wedge |
-| `cv_media` | `public_scene_cv` | media **upload** and/or allowlisted URL + annotation `{category, caption, bboxes[]}` | `synthetic_allowed=false` by default |
+| `osint_label` | `structured_osint` | allowlisted source URL + event/location/time/equipment labels | Pins ontology `osint_label@0.1.0` by default — [osint-ontology-v0.md](./osint-ontology-v0.md) |
+| `cv_media` | `public_scene_cv` | media **upload** and/or allowlisted URL + annotation `{category, caption, bboxes[]}` | Pins `cv_media@0.1.0`; `synthetic_allowed=false` by default |
+
+Ontology API: `GET /api/ontology`, `GET /api/ontology/{id}?version=…`. UI: `/admin/ontology`.
 
 CV category whitelist (defaults): `parade_public`, `museum_exhibit`, `official_promo`, `public_airshow`, `open_training_viewing`.
 
@@ -179,13 +181,14 @@ Seeded from `backend/app/allowlist_v0.py` (~30 public EN hosts). Online-only; no
 - Shared manual review queue, CreditLedger, Dataset JSONL export (proxy + optional presign)
 - Admin analytics summary: `GET /api/admin/analytics` + UI `/admin/analytics` (campaign status, submission outcomes, accept/reject rates, credits, per-campaign counts)
 - KYB document **stub**: buyer `POST /api/orgs/{id}/kyb/packet` (+ optional `/kyb/upload`); admin views packet + approve/reject with KO memo (`POST .../kyb`)
+- Versioned ontology: seed JSON `osint_label@0.1.0` / `cv_media@0.1.0`; campaigns pin `ontology_id`+`schema_version`; verify rejects schema mismatches — see [osint-ontology-v0.md](./osint-ontology-v0.md)
 
 **Stubbed / deferred**
 
 - Real KYB / ID-verification vendor; ML deepfake / perceptual hash
 - On-chain token; fiat automation; full BI / charting
 - Per-campaign allowlist subset
-- Ontology / schema work (next product track)
+- Runtime ontology editor (edit seed JSON + bump version instead)
 
 ## Safety notes
 

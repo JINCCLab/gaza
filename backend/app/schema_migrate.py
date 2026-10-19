@@ -36,6 +36,16 @@ def ensure_sqlite_columns(engine: Engine) -> None:
                 conn.execute(
                     text("ALTER TABLE submissions ADD COLUMN storage_key VARCHAR(512)")
                 )
+        if "campaigns" in tables:
+            ccols = {c["name"] for c in insp.get_columns("campaigns")}
+            if "ontology_id" not in ccols:
+                conn.execute(
+                    text("ALTER TABLE campaigns ADD COLUMN ontology_id VARCHAR(64)")
+                )
+            if "schema_version" not in ccols:
+                conn.execute(
+                    text("ALTER TABLE campaigns ADD COLUMN schema_version VARCHAR(32)")
+                )
         if "organizations" in tables:
             ocols = {c["name"] for c in insp.get_columns("organizations")}
             org_adds = [

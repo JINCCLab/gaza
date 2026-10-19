@@ -70,9 +70,22 @@ export default function AdminPage() {
               synthetic_allowed=false 기본, 민감·합성 사유 코드 사용.
             </p>
           </div>
-          <Link href="/admin/analytics" className="btn secondary" style={{ textDecoration: "none" }}>
-            분석 / Analytics
-          </Link>
+          <div className="row">
+            <Link
+              href="/admin/analytics"
+              className="btn secondary"
+              style={{ textDecoration: "none" }}
+            >
+              분석 / Analytics
+            </Link>
+            <Link
+              href="/admin/ontology"
+              className="btn secondary"
+              style={{ textDecoration: "none" }}
+            >
+              온톨로지
+            </Link>
+          </div>
         </div>
         {msg && <p className="success">{msg}</p>}
         {err && <p className="error">{err}</p>}

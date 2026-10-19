@@ -85,8 +85,11 @@ class CampaignCreate(BaseModel):
     # osint_label | cv_media (aliases: osint_labels, cv)
     data_type: str = "osint_label"
     data_class: str = "structured_osint"
+    # Pin versioned ontology; empty → server picks current default for data_type
+    ontology_id: Optional[str] = None
+    schema_version: Optional[str] = None
     target_region: str = "en_us_asia"
-    # Empty → server fills template defaults for the chosen data_type
+    # Empty → server fills from ontology seed for the chosen data_type
     requirements_json: Dict[str, Any] = Field(default_factory=dict)
     # Phase-0 CV default false (real scenes only unless Admin later enables)
     synthetic_allowed: bool = False
@@ -102,6 +105,8 @@ class CampaignOut(BaseModel):
     description: str
     data_type: str
     data_class: str
+    ontology_id: Optional[str] = None
+    schema_version: Optional[str] = None
     target_region: str
     requirements_json: Dict[str, Any]
     synthetic_allowed: bool
@@ -115,6 +120,27 @@ class CampaignOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class OntologySummaryOut(BaseModel):
+    ontology_id: str
+    schema_version: str
+    data_type: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    is_default: bool = False
+
+
+class OntologyDetailOut(BaseModel):
+    ontology_id: str
+    schema_version: str
+    data_type: str
+    title: str
+    description: str
+    safety: Dict[str, Any] = Field(default_factory=dict)
+    required_label_fields: List[str] = Field(default_factory=list)
+    required_submission_fields: List[str] = Field(default_factory=list)
+    fields: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CampaignDecision(BaseModel):

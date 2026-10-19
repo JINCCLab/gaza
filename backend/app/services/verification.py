@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.campaign_types import allowed_cv_categories, is_cv_campaign
 from app.models import Campaign, Submission, VerificationEvent
+from app.ontology_registry import get_ontology, resolve_pin, validate_labels_against_ontology
 from app.services.allowlist import is_host_allowed
 
 
@@ -12,6 +13,19 @@ REQUIRED_LABEL_KEYS = ("event_type", "location_public", "event_time", "equipment
 ALLOWED_UPLOAD_TYPES = frozenset(
     {"image/jpeg", "image/png", "image/webp", "video/mp4"}
 )
+
+
+def _campaign_ontology(campaign: Campaign):
+    """Load ontology pinned on campaign (or default for data_type)."""
+    try:
+        if campaign.ontology_id and campaign.schema_version:
+            return get_ontology(campaign.ontology_id, campaign.schema_version)
+        _, _, doc = resolve_pin(
+            campaign.data_type, campaign.ontology_id, campaign.schema_version
+        )
+        return doc
+    except (KeyError, ValueError):
+        return None
 
 
 def _hash_payload(*parts: str) -> str:
@@ -61,24 +75,48 @@ def _run_osint_stages(db: Session, submission: Submission, campaign: Campaign) -
         return "rejected"
     _event(db, submission.id, "technical", "pass", {"stub": True, "template": "osint"})
 
-    # 2. Schema / policy
-    missing = [k for k in REQUIRED_LABEL_KEYS if not labels.get(k)]
-    req = campaign.requirements_json or {}
-    allowed_events = set(req.get("event_types") or [])
-    allowed_equip = set(req.get("equipment_types") or [])
-    schema_ok = not missing
-    if allowed_events and labels.get("event_type") not in allowed_events:
-        schema_ok = False
-        missing.append("event_type_not_in_enum")
-    if allowed_equip and labels.get("equipment_type") not in allowed_equip:
-        schema_ok = False
-        missing.append("equipment_type_not_in_enum")
+    # 2. Schema / policy — versioned ontology when pinned; else legacy requirements enums
+    onto = _campaign_ontology(campaign)
+    if onto:
+        schema_ok, missing = validate_labels_against_ontology(
+            onto,
+            labels=labels,
+            source_url=submission.source_url or "",
+        )
+        detail = {
+            "ontology_id": onto.get("ontology_id"),
+            "schema_version": onto.get("schema_version"),
+            "errors": missing,
+        }
+    else:
+        missing = [k for k in REQUIRED_LABEL_KEYS if not labels.get(k)]
+        req = campaign.requirements_json or {}
+        allowed_events = set(req.get("event_types") or [])
+        allowed_equip = set(req.get("equipment_types") or [])
+        schema_ok = not missing
+        if allowed_events and labels.get("event_type") not in allowed_events:
+            schema_ok = False
+            missing.append("event_type_not_in_enum")
+        if allowed_equip and labels.get("equipment_type") not in allowed_equip:
+            schema_ok = False
+            missing.append("equipment_type_not_in_enum")
+        detail = {"missing": missing, "legacy": True}
     if not schema_ok:
-        _event(db, submission.id, "schema_policy", "fail", {"missing": missing})
+        _event(db, submission.id, "schema_policy", "fail", detail)
         submission.verification_status = "rejected"
         submission.reject_reason = "schema_policy"
         return "rejected"
-    _event(db, submission.id, "schema_policy", "pass", {"keys": list(REQUIRED_LABEL_KEYS)})
+    _event(
+        db,
+        submission.id,
+        "schema_policy",
+        "pass",
+        {
+            "keys": list((onto or {}).get("required_label_fields") or REQUIRED_LABEL_KEYS),
+            "ontology_id": (onto or {}).get("ontology_id"),
+            "schema_version": (onto or {}).get("schema_version"),
+        },
+    )
 
     # 3. Provenance — allowlist host check (enabled hosts only)
     allowed, host, fail_code = is_host_allowed(db, submission.source_url)
@@ -172,18 +210,30 @@ def _run_cv_stages(db: Session, submission: Submission, campaign: Campaign) -> s
         },
     )
 
-    # 2. Schema — category / caption / optional bboxes
+    # 2. Schema — versioned ontology + category / caption / optional bboxes
     category = labels.get("category")
     caption = labels.get("caption")
     bboxes = labels.get("bboxes") or []
     missing = []
-    if not category:
-        missing.append("category")
-    if not caption or not str(caption).strip():
-        missing.append("caption")
-    allowed_cats = allowed_cv_categories(req)
-    if category and category not in allowed_cats:
-        missing.append("category_not_in_whitelist")
+    onto = _campaign_ontology(campaign)
+    if onto:
+        ok, onto_errs = validate_labels_against_ontology(
+            onto,
+            labels=labels,
+            source_url=submission.source_url or "",
+            storage_key=submission.storage_key,
+        )
+        if not ok:
+            missing.extend(onto_errs)
+    else:
+        if not category:
+            missing.append("category")
+        if not caption or not str(caption).strip():
+            missing.append("caption")
+        allowed_cats = allowed_cv_categories(req)
+        if category and category not in allowed_cats:
+            missing.append("category_not_in_whitelist")
+    # Always validate bbox shape when present
     if not isinstance(bboxes, list):
         missing.append("bboxes_not_list")
     else:
@@ -200,16 +250,33 @@ def _run_cv_stages(db: Session, submission: Submission, campaign: Campaign) -> s
                 if v < 0 or v > 1:
                     missing.append(f"bbox_{i}_{k}_range")
     if missing:
-        _event(db, submission.id, "schema_policy", "fail", {"missing": missing})
+        _event(
+            db,
+            submission.id,
+            "schema_policy",
+            "fail",
+            {
+                "missing": missing,
+                "ontology_id": (onto or {}).get("ontology_id") if onto else None,
+                "schema_version": (onto or {}).get("schema_version") if onto else None,
+            },
+        )
         submission.verification_status = "rejected"
         submission.reject_reason = "schema_policy"
         return "rejected"
+    whitelist = sorted(allowed_cv_categories(req))
     _event(
         db,
         submission.id,
         "schema_policy",
         "pass",
-        {"category": category, "bbox_count": len(bboxes), "whitelist": sorted(allowed_cats)},
+        {
+            "category": category,
+            "bbox_count": len(bboxes),
+            "whitelist": whitelist,
+            "ontology_id": (onto or {}).get("ontology_id") if onto else None,
+            "schema_version": (onto or {}).get("schema_version") if onto else None,
+        },
     )
 
     # 3. Provenance — allowlist if URL provided; uploads require license claim + public category
