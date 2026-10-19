@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 
 export default function HomePage() {
-  const { user, loading } = useAuth();
+  const { user, loading, authMode, signedIn } = useAuth();
 
   return (
     <div className="stack">
       <div className="panel">
         <h2>Happy path (vertical slice)</h2>
         <ol className="muted">
+          <li>
+            <Link href="/sign-in">Sign in</Link> (Clerk or local persona session)
+          </li>
           <li>
             <strong>Admin</strong> — approve Org KYB
           </li>
@@ -32,15 +35,18 @@ export default function HomePage() {
         </ol>
         <p className="muted">
           Contributor & Buyer UI = English. Admin ops labels = Korean where useful. Online-only
-          OSINT; no on-chain token; no CV template.
+          OSINT; no on-chain token; no CV template. Auth mode: <code>{authMode}</code>.
         </p>
-        {!loading && user && (
+        {!loading && signedIn && user && (
           <p>
-            Current role: <span className="badge">{user.role}</span> {user.email}
+            Session: <span className="badge">{user.role}</span> {user.email}
           </p>
         )}
         <div className="row" style={{ marginTop: "1rem" }}>
-          <Link className="btn" href="/admin">
+          <Link className="btn" href="/sign-in">
+            Sign in
+          </Link>
+          <Link className="btn secondary" href="/admin">
             Go Admin
           </Link>
           <Link className="btn secondary" href="/buyer">

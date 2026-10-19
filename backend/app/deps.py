@@ -1,32 +1,45 @@
 from typing import Optional
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.auth_jwt import verify_access_token
 from app.database import get_db
+from app.identity import upsert_user_from_claims
 from app.models import User
+
+_bearer = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    x_user_id: Optional[int] = Header(default=None, alias="X-User-Id"),
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> User:
-    """Demo auth: pass X-User-Id header. Real Clerk/Supabase deferred."""
-    if x_user_id is None:
-        raise HTTPException(status_code=401, detail="Missing X-User-Id header (demo auth)")
-    user = db.get(User, x_user_id)
-    if not user or user.status != "active":
-        raise HTTPException(status_code=401, detail="Invalid user")
+    """Require Authorization: Bearer <session JWT> (Clerk or local dev)."""
+    if creds is None or not creds.credentials:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Authorization Bearer token (sign in via Clerk or POST /api/auth/dev-login)",
+        )
+    claims = verify_access_token(creds.credentials)
+    user = upsert_user_from_claims(db, claims)
+    if user.status != "active":
+        raise HTTPException(status_code=401, detail="User inactive")
     return user
 
 
 def get_optional_user(
-    x_user_id: Optional[int] = Header(default=None, alias="X-User-Id"),
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
-    if x_user_id is None:
+    if creds is None or not creds.credentials:
         return None
-    user = db.get(User, x_user_id)
+    try:
+        claims = verify_access_token(creds.credentials)
+        user = upsert_user_from_claims(db, claims)
+    except HTTPException:
+        return None
     if not user or user.status != "active":
         return None
     return user

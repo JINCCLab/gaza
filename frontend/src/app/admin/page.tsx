@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, type Campaign, type Org, type Submission } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -24,9 +25,9 @@ export default function AdminPage() {
     try {
       const [o, c, q, a] = await Promise.all([
         api.orgs(),
-        api.campaigns(user.id, "pending_review"),
-        api.reviewQueue(user.id),
-        api.allowlist(user.id),
+        api.campaigns("pending_review"),
+        api.reviewQueue(),
+        api.allowlist(),
       ]);
       setOrgs(o);
       setPending(c);
@@ -41,11 +42,18 @@ export default function AdminPage() {
     void load();
   }, [load]);
 
-  if (!user) return <p className="muted">Loading…</p>;
+  if (!user) {
+    return (
+      <div className="panel">
+        <Link href="/sign-in">Sign in</Link> as <strong>admin</strong> (Admin으로 로그인하세요).
+      </div>
+    );
+  }
   if (user.role !== "admin") {
     return (
       <div className="panel">
-        Switch role to <strong>admin</strong> in the header (Admin 역할로 전환하세요).
+        Signed in as <strong>{user.role}</strong>.{" "}
+        <Link href="/sign-in">Switch account</Link> to Admin (Admin 계정으로 전환하세요).
       </div>
     );
   }
@@ -98,7 +106,7 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={async () => {
-                            await api.decideKyb(user.id, o.id, true, "파일럿 KYB 승인");
+                            await api.decideKyb(o.id, true, "파일럿 KYB 승인");
                             setMsg(`Org #${o.id} KYB approved`);
                             await load();
                             await refresh();
@@ -110,7 +118,7 @@ export default function AdminPage() {
                           type="button"
                           className="danger"
                           onClick={async () => {
-                            await api.decideKyb(user.id, o.id, false, "자료 부족");
+                            await api.decideKyb(o.id, false, "자료 부족");
                             setMsg(`Org #${o.id} KYB rejected`);
                             await load();
                           }}
@@ -141,7 +149,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={async () => {
-                    await api.decideCampaign(user.id, c.id, true, "정책 통과 — publish");
+                    await api.decideCampaign(c.id, true, "정책 통과 — publish");
                     setMsg(`Campaign #${c.id} published (active)`);
                     await load();
                   }}
@@ -152,7 +160,7 @@ export default function AdminPage() {
                   type="button"
                   className="danger"
                   onClick={async () => {
-                    await api.decideCampaign(user.id, c.id, false, "요구사항 불충분");
+                    await api.decideCampaign(c.id, false, "요구사항 불충분");
                     setMsg(`Campaign #${c.id} rejected`);
                     await load();
                   }}
@@ -193,7 +201,7 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={async () => {
-                        await api.review(user.id, s.id, {
+                        await api.review(s.id, {
                           accept: true,
                           reason_code: "quality_ok",
                           quality_mult: 1.0,
@@ -210,7 +218,7 @@ export default function AdminPage() {
                       type="button"
                       className="danger"
                       onClick={async () => {
-                        await api.review(user.id, s.id, {
+                        await api.review(s.id, {
                           accept: false,
                           reason_code: "label_quality",
                           internal_memo_ko: memo || "라벨 품질 부족",
@@ -261,7 +269,7 @@ export default function AdminPage() {
                     type="button"
                     className="secondary"
                     onClick={async () => {
-                      await api.setAllowlistEnabled(user.id, h.id, !h.enabled);
+                      await api.setAllowlistEnabled(h.id, !h.enabled);
                       setMsg(
                         h.enabled
                           ? `Disabled ${h.host}`
@@ -301,7 +309,7 @@ export default function AdminPage() {
             type="button"
             className="secondary"
             onClick={async () => {
-              await api.addAllowlist(user.id, newHost, newCategory);
+              await api.addAllowlist(newHost, newCategory);
               setNewHost("");
               setMsg("Host added / re-enabled");
               await load();

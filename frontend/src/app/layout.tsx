@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { AuthProvider } from "@/lib/auth";
 import "./globals.css";
+import { AppProviders } from "@/components/providers";
 import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
@@ -20,9 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <AuthProvider>
+        <AppProviders>
           <AppShell>{children}</AppShell>
-        </AuthProvider>
+        </AppProviders>
       </body>
     </html>
   );

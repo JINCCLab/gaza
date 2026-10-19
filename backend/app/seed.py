@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.allowlist_v0 import ALLOWLIST_V0
+from app.identity import subject_for_dev_email
 from app.models import AllowlistHost, Organization, User
 
 
@@ -36,6 +37,11 @@ def seed_demo(db: Session) -> dict:
 
     existing = db.query(User).filter(User.email == "admin@demo.local").first()
     if existing:
+        # Backfill auth_subject on older DBs so dev-login links cleanly
+        for u in db.query(User).all():
+            if not u.auth_subject:
+                u.auth_subject = subject_for_dev_email(u.email)
+        db.commit()
         return {
             "seeded": False,
             "message": "already seeded",
@@ -46,6 +52,7 @@ def seed_demo(db: Session) -> dict:
         email="admin@demo.local",
         display_name="Admin (Founder)",
         role="admin",
+        auth_subject=subject_for_dev_email("admin@demo.local"),
         terms_accepted=True,
         kyc_status="not_required",
     )
@@ -56,6 +63,7 @@ def seed_demo(db: Session) -> dict:
         email="buyer@demo.local",
         display_name="Buyer Ops",
         role="buyer",
+        auth_subject=subject_for_dev_email("buyer@demo.local"),
         terms_accepted=True,
         kyc_status="not_required",
     )
@@ -76,6 +84,7 @@ def seed_demo(db: Session) -> dict:
         email="contributor@demo.local",
         display_name="EN Contributor",
         role="contributor",
+        auth_subject=subject_for_dev_email("contributor@demo.local"),
         terms_accepted=True,
         country="US",
         kyc_status="not_required",
