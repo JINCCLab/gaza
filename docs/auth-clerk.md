@@ -78,7 +78,7 @@ Paste keys only in host dashboards / local `.env` files. Never commit real `sk_`
 
 ### 2. Netlify (Next.js frontend)
 
-Repo root [`netlify.toml`](../netlify.toml) sets `base = "frontend"` and the Next.js build plugin so previews build the App Router app (not the monorepo root).
+[`frontend/netlify.toml`](../frontend/netlify.toml) configures the Next.js build + `@netlify/plugin-nextjs`. In the Netlify UI, set **Base directory** (or Package directory) to `frontend`. Do not also set `[build].base` in a root `netlify.toml` — that doubles the path (`frontend/frontend`) and breaks Deploy Previews.
 
 | Variable | Where | Notes |
 |----------|--------|--------|
