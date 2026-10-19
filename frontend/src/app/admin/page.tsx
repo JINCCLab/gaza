@@ -63,7 +63,8 @@ export default function AdminPage() {
       <div className="panel">
         <h2>Admin 운영 콘솔</h2>
         <p className="muted">
-          KYB 승인 → 캠페인 사전승인 → 제출 수동 큐. Founder ops UI (KO/EN).
+          KYB 승인 → 캠페인 사전승인 (OSINT / CV) → 제출 수동 큐. Founder ops UI (KO/EN). CV는
+          synthetic_allowed=false 기본, 민감·합성 사유 코드 사용.
         </p>
         {msg && <p className="success">{msg}</p>}
         {err && <p className="error">{err}</p>}
@@ -141,9 +142,11 @@ export default function AdminPage() {
             <div key={c.id} style={{ marginBottom: "0.75rem" }}>
               <strong>
                 #{c.id} {c.title}
-              </strong>
+              </strong>{" "}
+              <span className="badge">{c.data_type}</span>
               <div className="muted">
-                pool={c.reward_pool} remaining={c.reward_remaining} unit={c.unit_reward}
+                pool={c.reward_pool} remaining={c.reward_remaining} unit={c.unit_reward} ·
+                synthetic={String(c.synthetic_allowed)}
               </div>
               <div className="row" style={{ marginTop: "0.4rem" }}>
                 <button
@@ -193,8 +196,11 @@ export default function AdminPage() {
                 <td className="mono">{s.id}</td>
                 <td>{s.campaign_id}</td>
                 <td>
-                  <div className="mono">{s.source_url}</div>
+                  <div className="mono">{s.source_url || s.storage_key || "(no media)"}</div>
                   <div className="muted mono">{JSON.stringify(s.labels_json)}</div>
+                  {(s.metadata_json as { template?: string })?.template === "cv_media" && (
+                    <span className="badge">cv_media</span>
+                  )}
                 </td>
                 <td>
                   <div className="row">
@@ -218,10 +224,13 @@ export default function AdminPage() {
                       type="button"
                       className="danger"
                       onClick={async () => {
+                        const isCv =
+                          (s.metadata_json as { template?: string })?.template === "cv_media";
                         await api.review(s.id, {
                           accept: false,
-                          reason_code: "label_quality",
-                          internal_memo_ko: memo || "라벨 품질 부족",
+                          reason_code: isCv ? "synthetic_suspected" : "label_quality",
+                          internal_memo_ko:
+                            memo || (isCv ? "합성/민감 의심 거절" : "라벨 품질 부족"),
                         });
                         setMsg(`Submission #${s.id} rejected`);
                         await load();
@@ -229,6 +238,23 @@ export default function AdminPage() {
                     >
                       거절
                     </button>
+                    {(s.metadata_json as { template?: string })?.template === "cv_media" && (
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={async () => {
+                          await api.review(s.id, {
+                            accept: false,
+                            reason_code: "sensitive_person",
+                            internal_memo_ko: memo || "인물·시설 민감 — 거절",
+                          });
+                          setMsg(`Submission #${s.id} rejected (sensitive)`);
+                          await load();
+                        }}
+                      >
+                        민감거절
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

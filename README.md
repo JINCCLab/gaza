@@ -2,7 +2,7 @@
 
 Minimal end-to-end loop:
 
-**Sign in → KYB Org → OSINT campaign draft → Admin approve → Contributor EN submission → auto verify stub + manual accept → CreditLedger → Dataset JSONL export**
+**Sign in → KYB Org → OSINT or CV campaign draft → Admin approve → Contributor EN submission (labels or media+annotation) → auto verify stub + manual accept → CreditLedger → Dataset JSONL export**
 
 Stack: **Next.js** (frontend) + **FastAPI** (API) + **SQLite** by default (Postgres via `DATABASE_URL` / optional `docker-compose.yml`) + **Clerk** IdP (local Bearer JWT fallback when keys missing).
 
@@ -49,10 +49,11 @@ Full click-path: [docs/mvp-slice-runbook.md](./docs/mvp-slice-runbook.md).
 | Real in this slice | Stubbed / deferred |
 |--------------------|--------------------|
 | Clerk JWT + local Bearer session fallback | Production Clerk org sync / webhooks polish |
+| Dual templates `osint_label` + `cv_media` (local media upload) | S3 media; ML deepfake / perceptual hash |
 | Domain models + SQLite persistence | — |
 | KYB status flag approve/reject | Full KYB document workflow |
 | Campaign draft → pending_review → active | Pause/close settlement polish |
-| OSINT submit (URL + labels JSON) | CV template, media upload |
+| OSINT + CV submit (URL/labels or upload+annotation) | Perceptual hash / commercial deepfake stack |
 | Allowlist v0 (~30 EN public hosts) + Admin disable | Per-campaign allowlist subset; further founder expand |
 | Verification stages 1–7 (heuristic) | Redis worker, deepfake ML, perceptual hash |
 | Manual accept/reject queue | Validator marketplace |

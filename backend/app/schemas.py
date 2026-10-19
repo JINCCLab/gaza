@@ -53,17 +53,13 @@ class KybDecision(BaseModel):
 class CampaignCreate(BaseModel):
     title: str
     description: str = ""
+    # osint_label | cv_media (aliases: osint_labels, cv)
     data_type: str = "osint_label"
     data_class: str = "structured_osint"
     target_region: str = "en_us_asia"
-    requirements_json: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "event_types": ["military_exercise", "equipment_display", "official_briefing"],
-            "location_granularity": "public_city_region",
-            "equipment_types": ["aircraft", "naval", "ground", "unknown"],
-            "label_guide_en": "Tag public open-source items only. Use public city/region location. Include source URL from allowlisted hosts.",
-        }
-    )
+    # Empty → server fills template defaults for the chosen data_type
+    requirements_json: Dict[str, Any] = Field(default_factory=dict)
+    # Phase-0 CV default false (real scenes only unless Admin later enables)
     synthetic_allowed: bool = False
     target_quantity: int = 10
     unit_reward: float = 10.0
@@ -108,12 +104,33 @@ class OsintLabels(BaseModel):
     notes: Optional[str] = None
 
 
+class BBox(BaseModel):
+    x: float = Field(..., ge=0.0, le=1.0)
+    y: float = Field(..., ge=0.0, le=1.0)
+    w: float = Field(..., ge=0.0, le=1.0)
+    h: float = Field(..., ge=0.0, le=1.0)
+    label: Optional[str] = None
+
+
+class CvAnnotation(BaseModel):
+    category: str
+    caption: str
+    bboxes: List[BBox] = Field(default_factory=list)
+
+
 class SubmissionCreate(BaseModel):
     campaign_id: int
-    source_url: str
-    labels: OsintLabels
+    # OSINT: required allowlisted URL. CV: media URL and/or storage_key from upload.
+    source_url: Optional[str] = ""
+    storage_key: Optional[str] = None
+    labels: Optional[OsintLabels] = None
+    annotation: Optional[CvAnnotation] = None
     claimed_capture_time: Optional[str] = None
     license_claim: str = "public_reporting_fair_use_claim"
+    content_type: Optional[str] = None
+    sha256: Optional[str] = None
+    # Contributor-declared; rejected when campaign.synthetic_allowed is false
+    claims_synthetic: bool = False
 
 
 class SubmissionOut(BaseModel):
@@ -121,6 +138,7 @@ class SubmissionOut(BaseModel):
     campaign_id: int
     contributor_id: int
     source_url: str
+    storage_key: Optional[str] = None
     labels_json: Dict[str, Any]
     metadata_json: Dict[str, Any]
     file_hash: Optional[str] = None
@@ -133,6 +151,14 @@ class SubmissionOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class MediaUploadOut(BaseModel):
+    storage_key: str
+    content_type: str
+    size_bytes: int
+    sha256: str
+    media_url: str
 
 
 class ReviewDecision(BaseModel):

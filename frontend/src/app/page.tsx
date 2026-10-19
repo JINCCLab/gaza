@@ -24,7 +24,7 @@ export default function HomePage() {
             <strong>Admin</strong> — approve / publish campaign
           </li>
           <li>
-            <strong>Contributor</strong> — submit one EN OSINT label (URL + labels JSON)
+            <strong>Contributor</strong> — submit OSINT labels <em>or</em> CV media + annotation JSON
           </li>
           <li>
             <strong>Admin</strong> — manual accept in review queue → CreditLedger reward
@@ -35,7 +35,8 @@ export default function HomePage() {
         </ol>
         <p className="muted">
           Contributor & Buyer UI = English. Admin ops labels = Korean where useful. Online-only
-          OSINT; no on-chain token; no CV template. Auth mode: <code>{authMode}</code>.
+          dual wedge (OSINT + CV public scenes); no on-chain token. Auth mode:{" "}
+          <code>{authMode}</code>.
         </p>
         {!loading && signedIn && user && (
           <p>

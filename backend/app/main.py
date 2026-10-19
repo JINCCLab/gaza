@@ -3,15 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, SessionLocal, engine
-from app.routers import allowlist, auth, campaigns, datasets, orgs, submissions
+from app.routers import allowlist, auth, campaigns, datasets, media, orgs, submissions
 from app.schema_migrate import ensure_sqlite_columns
 from app.schemas import HealthOut
 from app.seed import seed_demo
 
 app = FastAPI(
     title="data_platform Phase-0 API",
-    description="OSINT vertical slice: KYB → campaign → submit → verify → credit → export",
-    version="0.2.0",
+    description="Phase-0 dual wedge: OSINT + CV templates — KYB → campaign → submit → verify → credit → export",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -28,6 +28,7 @@ app.include_router(campaigns.router)
 app.include_router(submissions.router)
 app.include_router(datasets.router)
 app.include_router(allowlist.router)
+app.include_router(media.router)
 
 
 @app.on_event("startup")
@@ -51,7 +52,8 @@ def health() -> HealthOut:
         "no_redis_worker_sync_pipeline",
         "no_s3_local_exports_dir",
         "no_onchain_token",
-        "no_cv_template",
+        "cv_media_local_disk_not_s3",
+        "cv_synthetic_deepfake_ml_stub",
         "allowlist_v0_founder_may_expand",
     ]
     if mode == "dev":

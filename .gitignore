@@ -4,6 +4,7 @@ backend/.venv/
 *.py[cod]
 .pytest_cache/
 data/*.db
+data/media/
 exports/*.jsonl
 exports/*.json
 
