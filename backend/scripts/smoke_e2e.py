@@ -345,6 +345,8 @@ def main() -> None:
                 "verify_mode": health.get("verify_mode"),
                 "verify_path": health.get("verify_path"),
                 "redis": health.get("redis"),
+                "storage_backend": health.get("storage_backend"),
+                "storage": health.get("storage"),
                 "osint": osint,
                 "cv": cv,
                 "credits": me["credit_balance"],

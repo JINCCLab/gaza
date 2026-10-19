@@ -208,6 +208,9 @@ class DatasetOut(BaseModel):
     manifest_json: Dict[str, Any]
     created_at: datetime
     download_url: Optional[str] = None
+    # Present when STORAGE_BACKEND=s3 (or auto+creds); short-lived GET URL.
+    # Prefer /download proxy for auth-gated access; use ?redirect=1 to 302.
+    presigned_url: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -239,3 +242,5 @@ class HealthOut(BaseModel):
     verify_mode: str = "sync"
     verify_path: str = "sync"
     redis: str = "unset"
+    storage_backend: str = "local"
+    storage: str = "ok"

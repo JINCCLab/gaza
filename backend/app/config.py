@@ -15,6 +15,7 @@ MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 AuthMode = Literal["auto", "clerk", "dev"]
 VerifyMode = Literal["auto", "sync", "async"]
+StorageBackend = Literal["auto", "local", "s3"]
 
 
 class Settings(BaseSettings):
@@ -27,9 +28,21 @@ class Settings(BaseSettings):
     media_dir: str = str(MEDIA_DIR)
     platform_fee_pct: float = 0.15
     quality_mult_cap: float = 1.5
-    # Phase-0 media upload limits (local disk; S3 later)
+    # Phase-0 media upload limits
     media_max_bytes: int = 8 * 1024 * 1024
     media_allowed_types: str = "image/jpeg,image/png,image/webp,video/mp4"
+
+    # Object storage — local filesystem default; S3-compatible when configured.
+    # auto: s3 when S3_BUCKET + access/secret keys set, else local.
+    storage_backend: StorageBackend = "auto"
+    s3_endpoint_url: Optional[str] = None  # MinIO e.g. http://127.0.0.1:9000
+    s3_region: str = "us-east-1"
+    s3_access_key_id: Optional[str] = None
+    s3_secret_access_key: Optional[str] = None
+    s3_bucket: Optional[str] = None
+    s3_media_prefix: str = "media/"
+    s3_exports_prefix: str = "exports/"
+    s3_presign_ttl_seconds: int = 3600
 
     # Verification — sync blocks the request; async enqueues to Redis worker.
     # auto: async when REDIS_URL is reachable, else sync. VERIFY_MODE=sync forces inline.
@@ -53,6 +66,10 @@ class Settings(BaseSettings):
         "clerk_issuer",
         "clerk_jwks_url",
         "redis_url",
+        "s3_endpoint_url",
+        "s3_access_key_id",
+        "s3_secret_access_key",
+        "s3_bucket",
         mode="before",
     )
     @classmethod

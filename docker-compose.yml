@@ -1,13 +1,15 @@
-# Local / prod-like stack: PostgreSQL + Redis + FastAPI + verify worker (+ optional Next.js UI).
-# Default demo without Compose still uses SQLite (DATABASE_URL unset) + VERIFY_MODE=sync.
+# Local / prod-like stack: PostgreSQL + Redis + FastAPI + verify worker (+ optional UI / MinIO).
+# Default demo without Compose still uses SQLite (DATABASE_URL unset) + local disk storage.
 #
 #   docker compose up --build db redis api worker
 #   docker compose --profile ui up --build
+#   docker compose -f docker-compose.yml -f docker-compose.s3.yml --profile s3 up --build
 #
 # Schema: startup Base.metadata.create_all (+ SQLite-only column patches).
 # No Alembic yet — see docs/mvp-slice-runbook.md § Database.
 # Verify: API enqueues to Redis; worker runs the same run_automated_stages pipeline.
 # Sync fallback: VERIFY_MODE=sync or Redis down → inline verify on the request thread.
+# Storage: local volumes by default; S3/MinIO via docker-compose.s3.yml + profile s3.
 
 services:
   db:
@@ -47,6 +49,7 @@ services:
       VERIFY_MODE: async
       AUTH_MODE: dev
       DEV_JWT_SECRET: phase0-dev-jwt-secret-change-me
+      STORAGE_BACKEND: local
     depends_on:
       db:
         condition: service_healthy
@@ -65,13 +68,14 @@ services:
       REDIS_URL: redis://redis:6379/0
       AUTH_MODE: dev
       DEV_JWT_SECRET: phase0-dev-jwt-secret-change-me
+      STORAGE_BACKEND: local
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      # Share media uploads with API so CV storage_key verification works
+      # Share media uploads with API so CV storage_key verification works (local backend)
       - api_data:/repo/data
       - api_exports:/repo/exports
 
@@ -88,7 +92,28 @@ services:
     depends_on:
       - api
 
+  # Optional S3-compatible store — enable with --profile s3 (+ docker-compose.s3.yml for API env).
+  minio:
+    profiles: ["s3"]
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
 volumes:
   pgdata:
   api_data:
   api_exports:
+  minio_data:

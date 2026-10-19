@@ -7,8 +7,18 @@ How to run the coding slice and walk OSINT and CV happy paths (same platform).
 - Python **3.9+** (backend uses `Optional`/`List`/`Dict` — FastAPI-safe on 3.9; no PEP 604 `X | Y`)
 - Node 20+
 - Repo branch with `backend/` + `frontend/`
-- Optional: Docker + Compose (Postgres + Redis + API + verify worker)
+- Optional: Docker + Compose (Postgres + Redis + API + verify worker; MinIO via `--profile s3`)
 - Optional: Clerk application keys (see [auth-clerk.md](./auth-clerk.md); production checklist in project store `docs/clerk-deploy-setup.md`)
+
+## Object storage (local vs S3)
+
+| Mode | Env | Behavior |
+|------|-----|----------|
+| **local** (default) | unset / `STORAGE_BACKEND=local` | CV media → `data/media/`; exports → `exports/` |
+| **s3** | `STORAGE_BACKEND=s3` (or `auto` + `S3_BUCKET` + keys) | Same logical keys in bucket (`media/…`, `exports/…`) via boto3 |
+| **MinIO (Compose)** | `docker compose -f docker-compose.yml -f docker-compose.s3.yml --profile s3 up --build` | API/worker get `S3_ENDPOINT_URL=http://minio:9000`, bucket `dataplat` |
+
+Download: `GET /api/datasets/{id}/download` always **proxies** bytes (auth-gated). With S3, response JSON also includes `presigned_url`; pass `?redirect=1` to 302 to the presigned GET. Health: `storage_backend`, `storage`.
 
 ## Database
 
@@ -68,13 +78,16 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev
 ```bash
 docker compose up --build db redis api worker
 # optional Next.js UI: docker compose --profile ui up --build
+# optional MinIO object storage:
+# docker compose -f docker-compose.yml -f docker-compose.s3.yml --profile s3 up --build
 ```
 
 - UI: http://localhost:3000  
 - Sign-in: http://localhost:3000/sign-in  
 - API docs: http://127.0.0.1:8000/docs  
-- Health: `GET /api/health` (`verify_path=async`, `redis=ok`)  
-- Auth config: `GET /api/auth/config`
+- Health: `GET /api/health` (`verify_path=async`, `redis=ok`, `storage_backend=local|s3`)  
+- Auth config: `GET /api/auth/config`  
+- MinIO console (profile s3): http://127.0.0.1:9001 (`minioadmin` / `minioadmin`)
 
 ## Auth (Clerk or local session)
 
@@ -145,15 +158,15 @@ Seeded from `backend/app/allowlist_v0.py` (~30 public EN hosts). Online-only; no
 
 - Clerk IdP (+ local Bearer JWT fallback)
 - Dual templates: `osint_label` | `cv_media` on one platform
-- CV local media upload (`data/media/`) + annotation schema
+- CV media upload (`data/media/` or S3) + annotation schema
 - CV verification stages (type/schema/allowlist-or-upload provenance/duplicate/synthetic gate)
 - Redis verify queue + `python -m app.worker` (Compose `redis` + `worker`); sync fallback
-- Shared manual review queue, CreditLedger, Dataset JSONL export
+- S3-compatible object storage (MinIO profile / AWS via `S3_*`); local disk fallback
+- Shared manual review queue, CreditLedger, Dataset JSONL export (proxy + optional presign)
 
 **Stubbed / deferred**
 
 - KYB document upload; ML deepfake / perceptual hash
-- S3 object storage (local disk for CV media)
 - On-chain token; fiat automation; analytics dashboards
 - Per-campaign allowlist subset
 

@@ -17,7 +17,7 @@ async def upload_media(
     user: User = Depends(require_role("contributor")),
     db: Session = Depends(get_db),
 ):
-    """Local disk upload for CV submissions (Phase-0). Returns storage_key for /api/submissions."""
+    """CV media upload (local disk or S3). Returns storage_key for /api/submissions."""
     _ = db  # session available for future audit rows
     rel, content_type, size, digest = await media_service.save_upload(
         file, contributor_id=user.id

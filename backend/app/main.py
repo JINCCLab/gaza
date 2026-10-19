@@ -8,11 +8,12 @@ from app.schema_migrate import ensure_sqlite_columns
 from app.schemas import HealthOut
 from app.seed import seed_demo
 from app.services.queue import effective_verify_path, redis_status
+from app.services.storage import ensure_bucket, storage_health
 
 app = FastAPI(
     title="data_platform Phase-0 API",
     description="Phase-0 dual wedge: OSINT + CV templates — KYB → campaign → submit → verify → credit → export",
-    version="0.4.0",
+    version="0.5.0",
 )
 
 app.add_middleware(
@@ -39,6 +40,7 @@ def on_startup() -> None:
     # Postgres relies on create_all against an empty DB (compose volume wipe to reset).
     Base.metadata.create_all(bind=engine)
     ensure_sqlite_columns(engine)
+    ensure_bucket()
     db = SessionLocal()
     try:
         seed_demo(db)
@@ -51,16 +53,19 @@ def health() -> HealthOut:
     mode = settings.resolved_auth_mode()
     path = effective_verify_path()
     rstatus = redis_status()
+    s_backend, s_status = storage_health()
     stubbed = [
         "kyb_status_flag_only",
         "verification_stages_1_7_heuristic",
         "fraud_synthetic_scores_stub",
-        "no_s3_local_exports_dir",
         "no_onchain_token",
-        "cv_media_local_disk_not_s3",
         "cv_synthetic_deepfake_ml_stub",
         "allowlist_v0_founder_may_expand",
     ]
+    if s_backend == "local":
+        stubbed.insert(0, "storage_local_disk_set_s3_for_object_storage")
+    else:
+        stubbed.insert(0, "storage_s3_compatible_active")
     if path == "sync":
         stubbed.insert(0, "verify_sync_inline_set_redis_for_async_worker")
     else:
@@ -76,4 +81,6 @@ def health() -> HealthOut:
         verify_mode=settings.verify_mode,
         verify_path=path,
         redis=rstatus,
+        storage_backend=s_backend,
+        storage=s_status,
     )

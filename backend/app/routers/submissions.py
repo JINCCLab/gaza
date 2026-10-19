@@ -14,7 +14,7 @@ from app.schemas import (
     VerificationEventOut,
 )
 from app.services.credits import grant_reward
-from app.services.media import resolve_storage_key
+from app.services.media import media_exists
 from app.services.queue import enqueue_verification, want_async_verify
 from app.services.verification import run_automated_stages
 
@@ -41,11 +41,8 @@ def create_submission(
             raise HTTPException(400, "CV campaign requires annotation (category, caption, bboxes)")
         if not source_url and not storage_key:
             raise HTTPException(400, "CV submission needs media URL and/or storage_key from upload")
-        if storage_key:
-            # Ensure key exists on disk
-            path = resolve_storage_key(storage_key)
-            if not path.is_file():
-                raise HTTPException(400, "storage_key not found; upload media first")
+        if storage_key and not media_exists(storage_key):
+            raise HTTPException(400, "storage_key not found; upload media first")
         labels = body.annotation.model_dump()
         meta = {
             "claimed_capture_time": body.claimed_capture_time,
