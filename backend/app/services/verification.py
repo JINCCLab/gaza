@@ -69,20 +69,42 @@ def run_automated_stages(db: Session, submission: Submission, campaign: Campaign
         return "rejected"
     _event(db, submission.id, "schema_policy", "pass", {"keys": list(REQUIRED_LABEL_KEYS)})
 
-    # 3. Provenance — allowlist host check
-    allowed, host = is_host_allowed(db, submission.source_url)
+    # 3. Provenance — allowlist host check (enabled hosts only)
+    allowed, host, fail_code = is_host_allowed(db, submission.source_url)
     if not allowed:
+        message = (
+            f"Source host '{host or '(empty)'}' is not on the Phase-0 allowlist "
+            "(or is disabled). Use a public EN news/official host from the allowlist. "
+            "Online-only OSINT — no conflict-zone field collection."
+        )
         _event(
             db,
             submission.id,
             "provenance",
             "fail",
-            {"host": host, "reason": "host_not_allowlisted"},
+            {
+                "host": host,
+                "reason": fail_code or "host_not_allowlisted",
+                "message": message,
+            },
         )
         submission.verification_status = "rejected"
         submission.reject_reason = "allowlist_reject"
+        meta = dict(meta)
+        meta["allowlist_failure"] = {
+            "host": host,
+            "code": fail_code or "host_not_allowlisted",
+            "message": message,
+        }
+        submission.metadata_json = meta
         return "rejected"
-    _event(db, submission.id, "provenance", "pass", {"host": host, "license_claim": meta.get("license_claim")})
+    _event(
+        db,
+        submission.id,
+        "provenance",
+        "pass",
+        {"host": host, "license_claim": meta.get("license_claim")},
+    )
 
     # 4. Duplicate — file_hash (content hash of url+labels)
     file_hash = _hash_payload(submission.source_url, labels)

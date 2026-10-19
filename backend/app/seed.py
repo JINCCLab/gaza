@@ -2,15 +2,45 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.allowlist_v0 import ALLOWLIST_V0
 from app.models import AllowlistHost, Organization, User
 
 
+def seed_allowlist_v0(db: Session) -> dict:
+    """Upsert Phase-0 allowlist hosts (idempotent). Does not re-enable disabled rows."""
+    inserted = 0
+    skipped = 0
+    for host, category in ALLOWLIST_V0:
+        existing = db.query(AllowlistHost).filter(AllowlistHost.host == host).first()
+        if existing:
+            # Keep admin disable; refresh category label if still seeded category family
+            if existing.category in (
+                "placeholder",
+                "",
+            ) or existing.category.startswith("us_") or existing.category in {
+                c for _, c in ALLOWLIST_V0
+            }:
+                if existing.category == "placeholder":
+                    existing.category = category
+            skipped += 1
+            continue
+        db.add(AllowlistHost(host=host, category=category, enabled=True))
+        inserted += 1
+    db.commit()
+    return {"inserted": inserted, "skipped": skipped, "total_v0": len(ALLOWLIST_V0)}
+
+
 def seed_demo(db: Session) -> dict:
-    """Idempotent demo users + allowlist placeholders."""
+    """Idempotent demo users + allowlist v0 sync."""
+    allowlist_stats = seed_allowlist_v0(db)
+
     existing = db.query(User).filter(User.email == "admin@demo.local").first()
     if existing:
-        return {"seeded": False, "message": "already seeded"}
+        return {
+            "seeded": False,
+            "message": "already seeded",
+            "allowlist": allowlist_stats,
+        }
 
     admin = User(
         email="admin@demo.local",
@@ -52,9 +82,6 @@ def seed_demo(db: Session) -> dict:
     )
     db.add(contributor)
 
-    for host in settings.default_allowlist_hosts:
-        db.add(AllowlistHost(host=host, category="placeholder"))
-
     db.commit()
     return {
         "seeded": True,
@@ -64,4 +91,5 @@ def seed_demo(db: Session) -> dict:
             "contributor": {"id": contributor.id, "email": contributor.email},
         },
         "org": {"id": org.id, "kyb_status": org.kyb_status},
+        "allowlist": allowlist_stats,
     }

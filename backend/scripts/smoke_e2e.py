@@ -53,6 +53,29 @@ def main() -> None:
     ).json()
     assert camp["status"] == "active", camp
 
+    hosts = c.get("/api/allowlist", headers=hdr(admin)).json()
+    enabled = [h for h in hosts if h.get("enabled", True)]
+    assert len(enabled) >= 15, f"expected allowlist v0 seed, got {len(enabled)}"
+
+    # Allowlist reject path
+    bad = c.post(
+        "/api/submissions",
+        headers=hdr(contrib),
+        json={
+            "campaign_id": camp["id"],
+            "source_url": "https://not-on-allowlist.example/story",
+            "labels": {
+                "event_type": "official_briefing",
+                "location_public": "Washington, DC",
+                "event_time": "2026-04-01",
+                "equipment_type": "aircraft",
+            },
+        },
+    ).json()
+    assert bad["verification_status"] == "rejected", bad
+    assert bad["reject_reason"] == "allowlist_reject", bad
+    assert (bad.get("metadata_json") or {}).get("allowlist_failure", {}).get("message"), bad
+
     sub = c.post(
         "/api/submissions",
         headers=hdr(contrib),
@@ -98,6 +121,8 @@ def main() -> None:
                 "submission_id": sub["id"],
                 "dataset_id": ds["id"],
                 "credits": me["credit_balance"],
+                "allowlist_enabled": len(enabled),
+                "allowlist_reject_ok": True,
                 "seed": seed,
             },
             indent=2,

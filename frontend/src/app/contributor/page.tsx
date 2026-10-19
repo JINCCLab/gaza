@@ -7,11 +7,26 @@ import { useAuth } from "@/lib/auth";
 const EVENT_TYPES = ["military_exercise", "equipment_display", "official_briefing"];
 const EQUIPMENT = ["aircraft", "naval", "ground", "unknown"];
 
+function allowlistFailureMessage(s: Submission): string | null {
+  if (s.verification_status !== "rejected" || s.reject_reason !== "allowlist_reject") {
+    return null;
+  }
+  const detail = s.metadata_json?.allowlist_failure as
+    | { host?: string; message?: string }
+    | undefined;
+  if (detail?.message) return detail.message;
+  const host = detail?.host || "(unknown)";
+  return `Allowlist failure: source host "${host}" is not an allowed public EN news/official host (or was disabled). Online-only OSINT — no conflict-zone field collection.`;
+}
+
 export default function ContributorPage() {
   const { user, refresh } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [subs, setSubs] = useState<Submission[]>([]);
   const [ledger, setLedger] = useState<Ledger[]>([]);
+  const [hosts, setHosts] = useState<
+    Array<{ id: number; host: string; category: string; enabled: boolean }>
+  >([]);
   const [campaignId, setCampaignId] = useState<number | "">("");
   const [sourceUrl, setSourceUrl] = useState("https://www.reuters.com/example-osint-story");
   const [eventType, setEventType] = useState(EVENT_TYPES[0]);
@@ -20,6 +35,7 @@ export default function ContributorPage() {
   const [equipment, setEquipment] = useState(EQUIPMENT[0]);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [allowlistErr, setAllowlistErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user || user.role !== "contributor") return;
@@ -30,6 +46,7 @@ export default function ContributorPage() {
       if (cams[0] && campaignId === "") setCampaignId(cams[0].id);
       setSubs(await api.submissions(user.id));
       setLedger(await api.ledger(user.id));
+      setHosts(await api.allowlist(user.id, true));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
@@ -60,10 +77,33 @@ export default function ContributorPage() {
           {user.reputation_score}
         </p>
         <p className="muted">
-          Online-only. Use allowlisted source hosts. Do not submit conflict-zone field collection.
+          Online-only. Source URL must use an <strong>allowlisted</strong> public EN news/official
+          host. Do not submit conflict-zone field collection.
         </p>
         {msg && <p className="success">{msg}</p>}
         {err && <p className="error">{err}</p>}
+        {allowlistErr && (
+          <div className="panel" style={{ borderColor: "#7f1d1d", marginTop: "0.75rem" }}>
+            <strong className="error">Allowlist rejection</strong>
+            <p className="error" style={{ marginBottom: 0 }}>
+              {allowlistErr}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="panel">
+        <h3>Allowed source hosts (v0)</h3>
+        <p className="muted">
+          {hosts.length} enabled hosts. Submissions from other domains are rejected automatically.
+        </p>
+        <div className="mono muted" style={{ maxHeight: 140, overflow: "auto", fontSize: "0.8rem" }}>
+          {hosts.map((h) => (
+            <div key={h.id}>
+              {h.host} <span className="badge">{h.category}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="panel">
@@ -100,7 +140,7 @@ export default function ContributorPage() {
             </option>
           ))}
         </select>
-        <label>Source URL (allowlisted host)</label>
+        <label>Source URL (must be allowlisted host)</label>
         <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
         <div className="grid two">
           <div>
@@ -129,6 +169,8 @@ export default function ContributorPage() {
           disabled={!selected}
           onClick={async () => {
             if (!selected) return;
+            setAllowlistErr(null);
+            setErr(null);
             try {
               const s = await api.createSubmission(user.id, {
                 campaign_id: selected.id,
@@ -142,7 +184,13 @@ export default function ContributorPage() {
                 claimed_capture_time: eventTime,
                 license_claim: "public_reporting_fair_use_claim",
               });
-              setMsg(`Submission #${s.id} → ${s.verification_status}`);
+              const al = allowlistFailureMessage(s);
+              if (al) {
+                setAllowlistErr(al);
+                setMsg(`Submission #${s.id} rejected (allowlist)`);
+              } else {
+                setMsg(`Submission #${s.id} → ${s.verification_status}`);
+              }
               await load();
               await refresh();
             } catch (e) {
@@ -162,29 +210,39 @@ export default function ContributorPage() {
               <tr>
                 <th>ID</th>
                 <th>Status</th>
+                <th>Detail</th>
                 <th>Reward</th>
               </tr>
             </thead>
             <tbody>
-              {subs.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.id}</td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        s.verification_status === "accepted"
-                          ? "ok"
-                          : s.verification_status === "rejected"
-                            ? "bad"
-                            : "warn"
-                      }`}
-                    >
-                      {s.verification_status}
-                    </span>
-                  </td>
-                  <td className="mono">{s.final_reward ?? "—"}</td>
-                </tr>
-              ))}
+              {subs.map((s) => {
+                const al = allowlistFailureMessage(s);
+                return (
+                  <tr key={s.id}>
+                    <td>{s.id}</td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          s.verification_status === "accepted"
+                            ? "ok"
+                            : s.verification_status === "rejected"
+                              ? "bad"
+                              : "warn"
+                        }`}
+                      >
+                        {s.verification_status}
+                      </span>
+                      {s.reject_reason && (
+                        <div className="mono muted">{s.reject_reason}</div>
+                      )}
+                    </td>
+                    <td className="muted" style={{ maxWidth: 280 }}>
+                      {al || "—"}
+                    </td>
+                    <td className="mono">{s.final_reward ?? "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
