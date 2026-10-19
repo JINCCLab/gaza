@@ -1,12 +1,11 @@
 import json
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models import AuditLog, Campaign, Dataset, Submission
+from app.services import storage as object_storage
 
 
 def build_dataset_export(
@@ -52,14 +51,17 @@ def build_dataset_export(
         }
         items.append(item)
 
-    export_dir = Path(settings.export_dir)
-    export_dir.mkdir(parents=True, exist_ok=True)
     filename = f"campaign_{campaign.id}_v{version}.jsonl"
-    path = export_dir / filename
-
-    with path.open("w", encoding="utf-8") as f:
-        for item in items:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+    logical_key = f"exports/{filename}"
+    body = ("\n".join(json.dumps(item, ensure_ascii=False) for item in items) + ("\n" if items else "")).encode(
+        "utf-8"
+    )
+    stored_key = object_storage.put_bytes(
+        logical_key,
+        body,
+        kind="exports",
+        content_type="application/x-ndjson",
+    )
 
     manifest = {
         "campaign_id": campaign.id,
@@ -72,16 +74,23 @@ def build_dataset_export(
         "format": "jsonl",
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "filename": filename,
+        "storage_key": stored_key,
+        "storage_backend": object_storage.resolved_storage_backend(),
     }
-    manifest_path = export_dir / f"campaign_{campaign.id}_v{version}_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest_key = f"exports/campaign_{campaign.id}_v{version}_manifest.json"
+    object_storage.put_bytes(
+        manifest_key,
+        json.dumps(manifest, indent=2).encode("utf-8"),
+        kind="exports",
+        content_type="application/json",
+    )
 
     dataset = Dataset(
         campaign_id=campaign.id,
         organization_id=campaign.organization_id,
         version=version,
         item_count=len(items),
-        export_storage_key=str(path),
+        export_storage_key=stored_key,
         manifest_json=manifest,
     )
     db.add(dataset)
@@ -101,7 +110,12 @@ def build_dataset_export(
             action="dataset_export",
             entity_type="dataset",
             entity_id=dataset.id,
-            detail_json={"campaign_id": campaign.id, "version": version, "path": str(path)},
+            detail_json={
+                "campaign_id": campaign.id,
+                "version": version,
+                "storage_key": stored_key,
+                "storage_backend": object_storage.resolved_storage_backend(),
+            },
         )
     )
     return dataset

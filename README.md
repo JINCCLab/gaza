@@ -4,7 +4,7 @@ Minimal end-to-end loop:
 
 **Sign in → KYB Org → OSINT or CV campaign draft → Admin approve → Contributor EN submission (labels or media+annotation) → auto verify stub + manual accept → CreditLedger → Dataset JSONL export**
 
-Stack: **Next.js** (frontend) + **FastAPI** (API) + **SQLite** by default (Postgres via `DATABASE_URL` / Compose) + optional **Redis verify worker** + **Clerk** IdP (local Bearer JWT fallback when keys missing).
+Stack: **Next.js** (frontend) + **FastAPI** (API) + **SQLite** by default (Postgres via `DATABASE_URL` / Compose) + optional **Redis verify worker** + optional **S3/MinIO** object storage + **Clerk** IdP (local Bearer JWT fallback when keys missing).
 
 **Requires Python 3.9+** (uses `Optional`/`List` typing for FastAPI runtime annotations; no PEP 604 `X | Y`).
 
@@ -40,12 +40,16 @@ SQLite remains the zero-config local default (`VERIFY_MODE=auto` → **sync** wi
 ```bash
 docker compose up --build db redis api worker
 # optional UI: docker compose --profile ui up --build
+# optional MinIO (S3-compatible media + exports):
+docker compose -f docker-compose.yml -f docker-compose.s3.yml --profile s3 up --build
 ```
 
 - API: http://127.0.0.1:8000 (`DATABASE_URL` → `db`, `REDIS_URL` → `redis`, `VERIFY_MODE=async`)
-- Worker: `python -m app.worker` (same image; shared `api_data` volume for CV media)
+- Worker: `python -m app.worker` (same image; shared `api_data` volume for local CV media)
+- Storage: local volumes by default; with s3 profile → MinIO bucket `dataplat` (`STORAGE_BACKEND=s3`)
 - Postgres: `localhost:5432` — user/pass/db `dataplat` / `dataplat` / `data_platform`
 - Redis: `localhost:6379`
+- MinIO: API `9000`, console `9001` (profile s3)
 - Schema: `create_all` on API startup (no Alembic yet; wipe the `pgdata` volume to reset)
 
 Local smoke without Redis (forces inline verify):
@@ -91,7 +95,7 @@ Full click-path: [docs/mvp-slice-runbook.md](./docs/mvp-slice-runbook.md).
 | Real in this slice | Stubbed / deferred |
 |--------------------|--------------------|
 | Clerk JWT + local Bearer session fallback | Production Clerk org sync / webhooks polish |
-| Dual templates `osint_label` + `cv_media` (local media upload) | S3 media; ML deepfake / perceptual hash |
+| Dual templates `osint_label` + `cv_media` (local or S3 media) | ML deepfake / perceptual hash |
 | Domain models + SQLite default / Postgres via `DATABASE_URL` + Compose | Alembic migrations (create_all for now) |
 | KYB status flag approve/reject | Full KYB document workflow |
 | Campaign draft → pending_review → active | Pause/close settlement polish |
@@ -100,7 +104,7 @@ Full click-path: [docs/mvp-slice-runbook.md](./docs/mvp-slice-runbook.md).
 | Verification stages 1–7 (heuristic) + Redis worker / sync fallback | Deepfake ML, perceptual hash |
 | Manual accept/reject queue | Validator marketplace |
 | CreditLedger reward + redeem_reserve | On-chain token / TGE |
-| Dataset v1 JSONL file export | S3 object storage |
+| Dataset JSONL export (local or S3; proxy + optional presign) | CDN / lifecycle policies polish |
 
 ## Layout
 
@@ -109,9 +113,10 @@ backend/          FastAPI app
 frontend/         Next.js App Router UI
 docs/             Runbook + auth notes
 .env.example      Clerk + DATABASE_URL template
-docker-compose.yml  Postgres + Redis + API + worker (+ optional UI profile)
-backend/Dockerfile  API / worker image (`python -m app.worker`)
-frontend/Dockerfile UI image (`--profile ui`)
-data/             SQLite DB + media (gitignored)
-exports/          Generated JSONL (gitignored)
+docker-compose.yml     Postgres + Redis + API + worker (+ optional UI / MinIO profiles)
+docker-compose.s3.yml  MinIO overlay (STORAGE_BACKEND=s3 on api/worker)
+backend/Dockerfile     API / worker image (`python -m app.worker`)
+frontend/Dockerfile    UI image (`--profile ui`)
+data/                  SQLite DB + media (gitignored; unused when S3)
+exports/               Generated JSONL (gitignored; unused when S3)
 ```

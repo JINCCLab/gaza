@@ -1,14 +1,14 @@
-from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user, require_role
+from app.deps import get_current_user
 from app.models import Campaign, Dataset, User
 from app.schemas import DatasetOut
+from app.services import storage as object_storage
 from app.services.export import build_dataset_export
 
 router = APIRouter(prefix="/api", tags=["datasets"])
@@ -17,6 +17,8 @@ router = APIRouter(prefix="/api", tags=["datasets"])
 def _with_url(d: Dataset) -> DatasetOut:
     out = DatasetOut.model_validate(d)
     out.download_url = f"/api/datasets/{d.id}/download"
+    if d.export_storage_key:
+        out.presigned_url = object_storage.presign_get_url(d.export_storage_key, kind="exports")
     return out
 
 
@@ -61,6 +63,10 @@ def download_dataset(
     dataset_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    redirect: bool = Query(
+        False,
+        description="If true and S3 presign is available, 302 to the presigned URL",
+    ),
 ):
     dataset = db.get(Dataset, dataset_id)
     if not dataset:
@@ -69,12 +75,20 @@ def download_dataset(
         raise HTTPException(403, "Forbidden")
     if user.role not in ("buyer", "admin"):
         raise HTTPException(403, "Forbidden")
-    if not dataset.export_storage_key or not Path(dataset.export_storage_key).exists():
+    if not dataset.export_storage_key:
         raise HTTPException(404, "Export file missing")
-    return FileResponse(
-        dataset.export_storage_key,
+
+    if redirect:
+        url = object_storage.presign_get_url(dataset.export_storage_key, kind="exports")
+        if url:
+            return RedirectResponse(url=url, status_code=302)
+
+    raw = object_storage.get_bytes(dataset.export_storage_key, kind="exports")
+    filename = object_storage.export_filename(dataset.export_storage_key)
+    return Response(
+        content=raw,
         media_type="application/x-ndjson",
-        filename=Path(dataset.export_storage_key).name,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
