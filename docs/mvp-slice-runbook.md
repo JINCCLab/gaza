@@ -7,7 +7,7 @@ How to run the coding slice and walk OSINT and CV happy paths (same platform).
 - Python **3.9+** (backend uses `Optional`/`List`/`Dict` — FastAPI-safe on 3.9; no PEP 604 `X | Y`)
 - Node 20+
 - Repo branch with `backend/` + `frontend/`
-- Optional: Docker + Compose (Postgres path)
+- Optional: Docker + Compose (Postgres + Redis + API + verify worker)
 - Optional: Clerk application keys (see [auth-clerk.md](./auth-clerk.md); production checklist in project store `docs/clerk-deploy-setup.md`)
 
 ## Database
@@ -15,14 +15,33 @@ How to run the coding slice and walk OSINT and CV happy paths (same platform).
 | Mode | How | Schema |
 |------|-----|--------|
 | **SQLite (default)** | Leave `DATABASE_URL` unset → `./data/data_platform.db` | `Base.metadata.create_all` + `ensure_sqlite_columns` patches |
-| **Postgres (Compose)** | `docker compose up --build db api` sets `DATABASE_URL` for the API service | `create_all` on empty DB; **no Alembic yet** — `docker compose down -v` to wipe |
+| **Postgres (Compose)** | `docker compose up --build db redis api worker` sets `DATABASE_URL` for API + worker | `create_all` on empty DB; **no Alembic yet** — `docker compose down -v` to wipe |
 | **Postgres (host API)** | `docker compose up -d db` then export `DATABASE_URL=postgresql+psycopg://dataplat:dataplat@127.0.0.1:5432/data_platform` | Same `create_all` |
 
 Driver: `psycopg` v3 (`postgresql+psycopg://…` in SQLAlchemy). Credentials match `docker-compose.yml`.
 
+## Verification (sync vs Redis worker)
+
+| Mode | Env | Behavior |
+|------|-----|----------|
+| **sync** | `VERIFY_MODE=sync` (or no Redis) | `POST /api/submissions` runs `run_automated_stages` on the request thread → `needs_review` / `rejected` |
+| **async** | `VERIFY_MODE=async` + `REDIS_URL` + worker | Create returns `in_review`; worker BRPOPs `verify:jobs` and runs the same pipeline |
+| **auto** (default) | `VERIFY_MODE=auto` | Async when `REDIS_URL` is reachable; otherwise sync |
+
+If Redis is down while `VERIFY_MODE=async|auto`, the API **sync-fallbacks** (same pipeline inline). Health exposes `verify_mode`, `verify_path`, `redis`.
+
+Worker (host):
+
+```bash
+cd backend && source .venv/bin/activate
+export REDIS_URL=redis://127.0.0.1:6379/0
+export VERIFY_MODE=async   # on the API process
+python -m app.worker
+```
+
 ## Start services
 
-### Option A — local SQLite (no Docker)
+### Option A — local SQLite (no Docker, sync verify)
 
 **Terminal A — API**
 
@@ -31,6 +50,7 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 # optional: cp ../.env.example .env  # fill Clerk keys for production IdP
+# default VERIFY_MODE=auto with no REDIS_URL → sync inline
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -43,17 +63,17 @@ npm install
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-### Option B — Docker Compose (Postgres + API)
+### Option B — Docker Compose (Postgres + Redis + API + worker)
 
 ```bash
-docker compose up --build db api
+docker compose up --build db redis api worker
 # optional Next.js UI: docker compose --profile ui up --build
 ```
 
 - UI: http://localhost:3000  
 - Sign-in: http://localhost:3000/sign-in  
 - API docs: http://127.0.0.1:8000/docs  
-- Health: `GET /api/health`  
+- Health: `GET /api/health` (`verify_path=async`, `redis=ok`)  
 - Auth config: `GET /api/auth/config`
 
 ## Auth (Clerk or local session)
@@ -87,7 +107,7 @@ CV category whitelist (defaults): `parade_public`, `museum_exhibit`, `official_p
 1. `/sign-in` → **admin** → Org KYB 승인.
 2. **buyer** → template `osint_label` → Create & submit for review.
 3. **admin** → 캠페인 사전승인 → 승인/게시.
-4. **contributor** → Reuters (allowlisted) URL + labels → Submit → `needs_review`.
+4. **contributor** → Reuters (allowlisted) URL + labels → Submit → (`in_review` if async) → `needs_review`.
 5. **admin** → 수락 → credits.
 6. **buyer** → Export / Download JSONL.
 
@@ -96,7 +116,7 @@ CV category whitelist (defaults): `parade_public`, `museum_exhibit`, `official_p
 1. KYB already approved (same org).
 2. **buyer** → template **`cv_media`** → Create & submit (`synthetic_allowed=false`).
 3. **admin** → 승인/게시.
-4. **contributor** → pick CV campaign → upload PNG/JPEG/WebP/MP4 **or** allowlisted media URL → category + caption + bboxes → Submit → `needs_review`.  
+4. **contributor** → pick CV campaign → upload PNG/JPEG/WebP/MP4 **or** allowlisted media URL → category + caption + bboxes → Submit → (`in_review` if async) → `needs_review`.  
    - Synthetic claim with `synthetic_allowed=false` → auto-reject `synthetic_not_allowed`.  
    - Duplicate same media+anno → `duplicate`.  
    - Non-allowlisted URL (when URL used) → `allowlist_reject`.
@@ -107,12 +127,13 @@ CV category whitelist (defaults): `parade_public`, `museum_exhibit`, `official_p
 
 ```bash
 cd backend && source .venv/bin/activate
+# Sync (default local): VERIFY_MODE=sync or no Redis
 python scripts/smoke_e2e.py
-# against Compose API:
+# against Compose API + worker (polls in_review → terminal):
 # python scripts/smoke_e2e.py http://127.0.0.1:8000
 ```
 
-Covers OSINT allowlist reject + accept/export, and CV upload + synthetic reject + duplicate reject + accept/export. Works on SQLite or Postgres equally (same API).
+Covers OSINT allowlist reject + accept/export, and CV upload + synthetic reject + duplicate reject + accept/export. Works on SQLite or Postgres equally (same API). Async mode: script polls until verify leaves `submitted`/`in_review`.
 
 ## Allowlist v0
 
@@ -126,11 +147,12 @@ Seeded from `backend/app/allowlist_v0.py` (~30 public EN hosts). Online-only; no
 - Dual templates: `osint_label` | `cv_media` on one platform
 - CV local media upload (`data/media/`) + annotation schema
 - CV verification stages (type/schema/allowlist-or-upload provenance/duplicate/synthetic gate)
+- Redis verify queue + `python -m app.worker` (Compose `redis` + `worker`); sync fallback
 - Shared manual review queue, CreditLedger, Dataset JSONL export
 
 **Stubbed / deferred**
 
-- KYB document upload; Redis worker; ML deepfake / perceptual hash
+- KYB document upload; ML deepfake / perceptual hash
 - S3 object storage (local disk for CV media)
 - On-chain token; fiat automation; analytics dashboards
 - Per-campaign allowlist subset

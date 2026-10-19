@@ -236,3 +236,6 @@ class HealthOut(BaseModel):
     status: str
     database: str
     stubbed: List[str]
+    verify_mode: str = "sync"
+    verify_path: str = "sync"
+    redis: str = "unset"

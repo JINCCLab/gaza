@@ -7,11 +7,12 @@ from app.routers import allowlist, auth, campaigns, datasets, media, orgs, submi
 from app.schema_migrate import ensure_sqlite_columns
 from app.schemas import HealthOut
 from app.seed import seed_demo
+from app.services.queue import effective_verify_path, redis_status
 
 app = FastAPI(
     title="data_platform Phase-0 API",
     description="Phase-0 dual wedge: OSINT + CV templates — KYB → campaign → submit → verify → credit → export",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 app.add_middleware(
@@ -48,23 +49,31 @@ def on_startup() -> None:
 @app.get("/api/health", response_model=HealthOut)
 def health() -> HealthOut:
     mode = settings.resolved_auth_mode()
+    path = effective_verify_path()
+    rstatus = redis_status()
     stubbed = [
         "kyb_status_flag_only",
         "verification_stages_1_7_heuristic",
         "fraud_synthetic_scores_stub",
-        "no_redis_worker_sync_pipeline",
         "no_s3_local_exports_dir",
         "no_onchain_token",
         "cv_media_local_disk_not_s3",
         "cv_synthetic_deepfake_ml_stub",
         "allowlist_v0_founder_may_expand",
     ]
+    if path == "sync":
+        stubbed.insert(0, "verify_sync_inline_set_redis_for_async_worker")
+    else:
+        stubbed.insert(0, "verify_async_redis_worker_active")
     if mode == "dev":
         stubbed.insert(0, "auth_dev_jwt_fallback_set_clerk_keys_for_prod")
     else:
-        stubbed.insert(0, f"auth_clerk_mode_active")
+        stubbed.insert(0, "auth_clerk_mode_active")
     return HealthOut(
         status="ok",
         database=settings.database_url.split("://")[0],
         stubbed=stubbed,
+        verify_mode=settings.verify_mode,
+        verify_path=path,
+        redis=rstatus,
     )

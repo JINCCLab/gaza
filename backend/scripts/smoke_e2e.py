@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""End-to-end happy paths (OSINT + CV) against a running API (default http://127.0.0.1:8000)."""
+"""End-to-end happy paths (OSINT + CV) against a running API (default http://127.0.0.1:8000).
+
+Works with VERIFY_MODE=sync (inline) and async Redis worker (polls until verify finishes).
+"""
 
 from __future__ import annotations
 
 import io
 import json
 import sys
+import time
 
 import httpx
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
+PENDING = frozenset({"submitted", "in_review"})
 
 
 def login(c: httpx.Client, email: str) -> tuple[dict[str, str], dict]:
@@ -17,6 +22,33 @@ def login(c: httpx.Client, email: str) -> tuple[dict[str, str], dict]:
     r.raise_for_status()
     data = r.json()
     return {"Authorization": f"Bearer {data['access_token']}"}, data["user"]
+
+
+def wait_verified(
+    c: httpx.Client,
+    headers: dict,
+    submission: dict,
+    *,
+    timeout_s: float = 30.0,
+) -> dict:
+    """Poll until automated stages leave submitted/in_review (async worker path)."""
+    sid = submission["id"]
+    status = submission.get("verification_status")
+    if status not in PENDING:
+        return submission
+    deadline = time.time() + timeout_s
+    last = submission
+    while time.time() < deadline:
+        time.sleep(0.25)
+        r = c.get(f"/api/submissions/{sid}", headers=headers)
+        r.raise_for_status()
+        last = r.json()
+        if last.get("verification_status") not in PENDING:
+            return last
+    raise AssertionError(
+        f"submission {sid} still {last.get('verification_status')} after {timeout_s}s "
+        f"(is the verify worker running?)"
+    )
 
 
 def ensure_kyb(c: httpx.Client, admin_h: dict, org_id: int) -> None:
@@ -68,6 +100,7 @@ def smoke_osint(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) 
             },
         },
     ).json()
+    bad = wait_verified(c, contrib_h, bad)
     assert bad["verification_status"] == "rejected", bad
     assert bad["reject_reason"] == "allowlist_reject", bad
 
@@ -85,6 +118,7 @@ def smoke_osint(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) 
             },
         },
     ).json()
+    sub = wait_verified(c, contrib_h, sub)
     assert sub["verification_status"] == "needs_review", sub
 
     sub = c.post(
@@ -149,6 +183,7 @@ def smoke_cv(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) -> 
             "license_claim": "public_official_media",
         },
     ).json()
+    syn = wait_verified(c, contrib_h, syn)
     assert syn["verification_status"] == "rejected", syn
     assert syn["reject_reason"] == "synthetic_not_allowed", syn
 
@@ -166,6 +201,7 @@ def smoke_cv(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) -> 
             },
         },
     ).json()
+    bad_cat = wait_verified(c, contrib_h, bad_cat)
     assert bad_cat["verification_status"] == "rejected", bad_cat
     assert bad_cat["reject_reason"] == "schema_policy", bad_cat
 
@@ -202,6 +238,7 @@ def smoke_cv(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) -> 
             "claims_synthetic": False,
         },
     ).json()
+    sub = wait_verified(c, contrib_h, sub)
     assert sub["verification_status"] == "needs_review", sub
     assert sub["storage_key"] == media["storage_key"], sub
 
@@ -222,6 +259,7 @@ def smoke_cv(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) -> 
             "license_claim": "museum_public_photography_ok",
         },
     ).json()
+    dup = wait_verified(c, contrib_h, dup)
     assert dup["verification_status"] == "rejected", dup
     assert dup["reject_reason"] == "duplicate", dup
 
@@ -304,6 +342,9 @@ def main() -> None:
             {
                 "ok": True,
                 "auth_mode": cfg["mode"],
+                "verify_mode": health.get("verify_mode"),
+                "verify_path": health.get("verify_path"),
+                "redis": health.get("redis"),
                 "osint": osint,
                 "cv": cv,
                 "credits": me["credit_balance"],
