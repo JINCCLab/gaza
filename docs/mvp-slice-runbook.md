@@ -24,11 +24,23 @@ Download: `GET /api/datasets/{id}/download` always **proxies** bytes (auth-gated
 
 | Mode | How | Schema |
 |------|-----|--------|
-| **SQLite (default)** | Leave `DATABASE_URL` unset → `./data/data_platform.db` | `Base.metadata.create_all` + `ensure_sqlite_columns` patches |
-| **Postgres (Compose)** | `docker compose up --build db redis api worker` sets `DATABASE_URL` for API + worker | `create_all` on empty DB; **no Alembic yet** — `docker compose down -v` to wipe |
-| **Postgres (host API)** | `docker compose up -d db` then export `DATABASE_URL=postgresql+psycopg://dataplat:dataplat@127.0.0.1:5432/data_platform` | Same `create_all` |
+| **SQLite (default)** | Leave `DATABASE_URL` unset → `./data/data_platform.db` | `Base.metadata.create_all` + `ensure_sqlite_columns` (Alembic skipped) |
+| **Postgres (Compose)** | `docker compose up --build db redis api worker` | Container **entrypoint** + API startup: `alembic upgrade head` (`backend/alembic/versions/`) |
+| **Postgres (host API)** | `docker compose up -d db` then `DATABASE_URL=postgresql+psycopg://dataplat:dataplat@127.0.0.1:5432/data_platform` | Same — `apply_schema()` / `alembic upgrade head` on boot |
 
 Driver: `psycopg` v3 (`postgresql+psycopg://…` in SQLAlchemy). Credentials match `docker-compose.yml`.
+
+Manual migrate (host):
+
+```bash
+cd backend && source .venv/bin/activate
+export DATABASE_URL=postgresql+psycopg://dataplat:dataplat@127.0.0.1:5432/data_platform
+alembic upgrade head
+# new revision after model changes:
+# alembic revision --autogenerate -m "describe_change"
+```
+
+Pre-Alembic Postgres volumes (schema from old `create_all`) are **stamped** to head on first boot so existing data is kept. Wipe with `docker compose down -v` for a clean migrate.
 
 ## Verification (sync vs Redis worker)
 
@@ -162,6 +174,7 @@ Seeded from `backend/app/allowlist_v0.py` (~30 public EN hosts). Online-only; no
 - CV verification stages (type/schema/allowlist-or-upload provenance/duplicate/synthetic gate)
 - Redis verify queue + `python -m app.worker` (Compose `redis` + `worker`); sync fallback
 - S3-compatible object storage (MinIO profile / AWS via `S3_*`); local disk fallback
+- Postgres schema via **Alembic** (`alembic upgrade head`); SQLite local `create_all`
 - Shared manual review queue, CreditLedger, Dataset JSONL export (proxy + optional presign)
 
 **Stubbed / deferred**

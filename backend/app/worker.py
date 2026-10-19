@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 
 from app.config import settings
 from app.database import SessionLocal
+from app.db_migrate import apply_schema
 from app.models import Campaign, Submission
 from app.services.queue import get_redis_client
 from app.services.verification import run_automated_stages
@@ -90,6 +91,9 @@ def run_forever() -> None:
 
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
+
+    # Idempotent: Compose entrypoint also migrates; safe if worker starts alone.
+    apply_schema()
 
     logger.info(
         "Starting worker queue=%s database=%s",

@@ -1,4 +1,4 @@
-"""Lightweight SQLite column adds for Phase-0 (no Alembic yet)."""
+"""Lightweight SQLite column adds for local/dev (Postgres uses Alembic)."""
 
 from __future__ import annotations
 
