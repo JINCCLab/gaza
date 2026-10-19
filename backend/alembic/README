@@ -1,0 +1,13 @@
+# Alembic migrations (Postgres)
+
+Runtime applies `alembic upgrade head` via `app.db_migrate.apply_schema()` on API/worker
+startup and the container `scripts/entrypoint.sh`.
+
+SQLite local/dev still uses `Base.metadata.create_all` (not Alembic).
+
+```bash
+cd backend
+export DATABASE_URL=postgresql+psycopg://dataplat:dataplat@127.0.0.1:5432/data_platform
+alembic upgrade head
+alembic revision --autogenerate -m "describe_change"
+```

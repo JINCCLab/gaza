@@ -50,7 +50,7 @@ docker compose -f docker-compose.yml -f docker-compose.s3.yml --profile s3 up --
 - Postgres: `localhost:5432` — user/pass/db `dataplat` / `dataplat` / `data_platform`
 - Redis: `localhost:6379`
 - MinIO: API `9000`, console `9001` (profile s3)
-- Schema: `create_all` on API startup (no Alembic yet; wipe the `pgdata` volume to reset)
+- Schema: **Alembic** `upgrade head` on API/worker entrypoint (Postgres); SQLite local still uses `create_all`
 
 Local smoke without Redis (forces inline verify):
 
@@ -96,7 +96,7 @@ Full click-path: [docs/mvp-slice-runbook.md](./docs/mvp-slice-runbook.md).
 |--------------------|--------------------|
 | Clerk JWT + local Bearer session fallback | Production Clerk org sync / webhooks polish |
 | Dual templates `osint_label` + `cv_media` (local or S3 media) | ML deepfake / perceptual hash |
-| Domain models + SQLite default / Postgres via `DATABASE_URL` + Compose | Alembic migrations (create_all for now) |
+| Domain models + SQLite `create_all` / Postgres Alembic via Compose | — |
 | KYB status flag approve/reject | Full KYB document workflow |
 | Campaign draft → pending_review → active | Pause/close settlement polish |
 | OSINT + CV submit (URL/labels or upload+annotation) | Perceptual hash / commercial deepfake stack |
@@ -115,7 +115,8 @@ docs/             Runbook + auth notes
 .env.example      Clerk + DATABASE_URL template
 docker-compose.yml     Postgres + Redis + API + worker (+ optional UI / MinIO profiles)
 docker-compose.s3.yml  MinIO overlay (STORAGE_BACKEND=s3 on api/worker)
-backend/Dockerfile     API / worker image (`python -m app.worker`)
+backend/alembic/       Postgres migrations (`alembic upgrade head`)
+backend/Dockerfile     API / worker image (entrypoint migrates, then uvicorn / worker)
 frontend/Dockerfile    UI image (`--profile ui`)
 data/                  SQLite DB + media (gitignored; unused when S3)
 exports/               Generated JSONL (gitignored; unused when S3)

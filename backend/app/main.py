@@ -2,9 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
+from app.db_migrate import apply_schema
 from app.routers import allowlist, auth, campaigns, datasets, media, orgs, submissions
-from app.schema_migrate import ensure_sqlite_columns
 from app.schemas import HealthOut
 from app.seed import seed_demo
 from app.services.queue import effective_verify_path, redis_status
@@ -13,7 +13,7 @@ from app.services.storage import ensure_bucket, storage_health
 app = FastAPI(
     title="data_platform Phase-0 API",
     description="Phase-0 dual wedge: OSINT + CV templates — KYB → campaign → submit → verify → credit → export",
-    version="0.5.0",
+    version="0.6.0",
 )
 
 app.add_middleware(
@@ -35,11 +35,9 @@ app.include_router(media.router)
 
 @app.on_event("startup")
 def on_startup() -> None:
-    # Phase-0 schema strategy: create_all on boot (no Alembic yet).
-    # SQLite also gets lightweight ALTER patches via ensure_sqlite_columns.
-    # Postgres relies on create_all against an empty DB (compose volume wipe to reset).
-    Base.metadata.create_all(bind=engine)
-    ensure_sqlite_columns(engine)
+    # SQLite: create_all + column patches. Postgres: alembic upgrade head
+    # (see app/db_migrate.py + alembic/versions/). Pre-Alembic PG volumes get stamped.
+    apply_schema()
     ensure_bucket()
     db = SessionLocal()
     try:

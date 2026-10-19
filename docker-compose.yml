@@ -5,8 +5,8 @@
 #   docker compose --profile ui up --build
 #   docker compose -f docker-compose.yml -f docker-compose.s3.yml --profile s3 up --build
 #
-# Schema: startup Base.metadata.create_all (+ SQLite-only column patches).
-# No Alembic yet — see docs/mvp-slice-runbook.md § Database.
+# Schema: API/worker entrypoint runs alembic upgrade head on Postgres
+# (SQLite local still uses create_all). See docs/mvp-slice-runbook.md § Database.
 # Verify: API enqueues to Redis; worker runs the same run_automated_stages pipeline.
 # Sync fallback: VERIFY_MODE=sync or Redis down → inline verify on the request thread.
 # Storage: local volumes by default; S3/MinIO via docker-compose.s3.yml + profile s3.
