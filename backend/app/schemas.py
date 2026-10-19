@@ -189,6 +189,7 @@ class AllowlistHostOut(BaseModel):
     id: int
     host: str
     category: str
+    enabled: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -197,6 +198,11 @@ class AllowlistHostOut(BaseModel):
 class AllowlistHostCreate(BaseModel):
     host: str
     category: str = "admin_added"
+
+
+class AllowlistHostUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    category: Optional[str] = None
 
 
 class HealthOut(BaseModel):

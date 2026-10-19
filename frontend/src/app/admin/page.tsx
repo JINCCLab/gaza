@@ -9,8 +9,11 @@ export default function AdminPage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [pending, setPending] = useState<Campaign[]>([]);
   const [queue, setQueue] = useState<Submission[]>([]);
-  const [hosts, setHosts] = useState<Array<{ id: number; host: string; category: string }>>([]);
+  const [hosts, setHosts] = useState<
+    Array<{ id: number; host: string; category: string; enabled: boolean }>
+  >([]);
   const [newHost, setNewHost] = useState("");
+  const [newCategory, setNewCategory] = useState("admin_added");
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [memo, setMemo] = useState("");
@@ -23,7 +26,7 @@ export default function AdminPage() {
         api.orgs(),
         api.campaigns(user.id, "pending_review"),
         api.reviewQueue(user.id),
-        api.allowlist(),
+        api.allowlist(user.id),
       ]);
       setOrgs(o);
       setPending(c);
@@ -227,27 +230,80 @@ export default function AdminPage() {
       </div>
 
       <div className="panel">
-        <h3>Allowlist hosts (stub)</h3>
-        <ul className="mono muted">
-          {hosts.map((h) => (
-            <li key={h.id}>
-              {h.host} <span className="badge">{h.category}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="row">
+        <h3>Allowlist v0 (호스트 목록 / 추가 / 비활성)</h3>
+        <p className="muted">
+          Phase-0 EN 공개 보도·공식 호스트. 비활성(disable)하면 제출 시 allowlist 거절. 소셜 덤프·분쟁지
+          현장 출처는 넣지 마세요.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Host</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {hosts.map((h) => (
+              <tr key={h.id}>
+                <td className="mono">{h.host}</td>
+                <td>
+                  <span className="badge">{h.category}</span>
+                </td>
+                <td>
+                  <span className={`badge ${h.enabled ? "ok" : "bad"}`}>
+                    {h.enabled ? "enabled" : "disabled"}
+                  </span>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={async () => {
+                      await api.setAllowlistEnabled(user.id, h.id, !h.enabled);
+                      setMsg(
+                        h.enabled
+                          ? `Disabled ${h.host}`
+                          : `Enabled ${h.host}`
+                      );
+                      await load();
+                    }}
+                  >
+                    {h.enabled ? "비활성" : "활성"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="row" style={{ marginTop: "0.75rem" }}>
           <input
             style={{ marginBottom: 0, maxWidth: 280 }}
             value={newHost}
             onChange={(e) => setNewHost(e.target.value)}
-            placeholder="add host e.g. bbc.com"
+            placeholder="add host e.g. reuters.com"
           />
+          <select
+            style={{ marginBottom: 0, width: "auto" }}
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+          >
+            <option value="admin_added">admin_added</option>
+            <option value="us_wire_national">us_wire_national</option>
+            <option value="us_defense_outlet">us_defense_outlet</option>
+            <option value="us_gov_military">us_gov_military</option>
+            <option value="asia_en_outlet">asia_en_outlet</option>
+            <option value="en_international">en_international</option>
+            <option value="public_eo_archive">public_eo_archive</option>
+          </select>
           <button
             type="button"
             className="secondary"
             onClick={async () => {
-              await api.addAllowlist(user.id, newHost);
+              await api.addAllowlist(user.id, newHost, newCategory);
               setNewHost("");
+              setMsg("Host added / re-enabled");
               await load();
             }}
           >

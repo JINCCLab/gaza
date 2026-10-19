@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Set, Tuple
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
@@ -11,22 +11,29 @@ def normalize_host(url_or_host: str) -> str:
     if "://" not in raw:
         raw = "https://" + raw
     parsed = urlparse(raw)
-    host = parsed.hostname or ""
+    return parsed.hostname or ""
+
+
+def apex_and_www(host: str) -> Set[str]:
+    host = host.lower().strip()
+    if not host:
+        return set()
     if host.startswith("www."):
-        return host
-    return host
+        return {host, host[4:]}
+    return {host, "www." + host}
 
 
-def is_host_allowed(db: Session, source_url: str) -> Tuple[bool, str]:
+def is_host_allowed(db: Session, source_url: str) -> Tuple[bool, str, Optional[str]]:
+    """
+    Returns (allowed, host, failure_code).
+    Only enabled allowlist rows count. www./apex variants match.
+    """
     host = normalize_host(source_url)
     if not host:
-        return False, ""
-    hosts = {h.host.lower() for h in db.query(AllowlistHost).all()}
-    # Match exact or www./apex variants
-    candidates = {host}
-    if host.startswith("www."):
-        candidates.add(host[4:])
-    else:
-        candidates.add("www." + host)
-    allowed = bool(candidates & hosts)
-    return allowed, host
+        return False, "", "invalid_host"
+    allowed_hosts: Set[str] = set()
+    for row in db.query(AllowlistHost).filter(AllowlistHost.enabled.is_(True)).all():
+        allowed_hosts |= apex_and_www(row.host)
+    if apex_and_www(host) & allowed_hosts:
+        return True, host, None
+    return False, host, "host_not_allowlisted"

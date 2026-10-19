@@ -20,6 +20,18 @@ def get_current_user(
     return user
 
 
+def get_optional_user(
+    x_user_id: Optional[int] = Header(default=None, alias="X-User-Id"),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    if x_user_id is None:
+        return None
+    user = db.get(User, x_user_id)
+    if not user or user.status != "active":
+        return None
+    return user
+
+
 def require_role(*roles: str):
     def _inner(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles:

@@ -154,12 +154,21 @@ export const api = {
     request<Dataset>(`/api/campaigns/${campaignId}/export`, { method: "POST", userId }),
   datasets: (userId: number) => request<Dataset[]>("/api/datasets", { userId }),
   ledger: (userId: number) => request<Ledger[]>("/api/ledger", { userId }),
-  allowlist: () => request<Array<{ id: number; host: string; category: string }>>("/api/allowlist"),
-  addAllowlist: (userId: number, host: string) =>
-    request("/api/allowlist", {
+  allowlist: (userId?: number, enabledOnly = false) =>
+    request<Array<{ id: number; host: string; category: string; enabled: boolean }>>(
+      `/api/allowlist${enabledOnly ? "?enabled_only=true" : ""}`,
+      userId != null ? { userId } : {}
+    ),
+  addAllowlist: (userId: number, host: string, category = "admin_added") =>
+    request<{ id: number; host: string; category: string; enabled: boolean }>("/api/allowlist", {
       method: "POST",
       userId,
-      body: JSON.stringify({ host, category: "admin_added" }),
+      body: JSON.stringify({ host, category }),
     }),
+  setAllowlistEnabled: (userId: number, id: number, enabled: boolean) =>
+    request<{ id: number; host: string; category: string; enabled: boolean }>(
+      `/api/allowlist/${id}/${enabled ? "enable" : "disable"}`,
+      { method: "POST", userId }
+    ),
   downloadUrl: (datasetId: number) => `${API_BASE}/api/datasets/${datasetId}/download`,
 };

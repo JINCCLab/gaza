@@ -48,7 +48,8 @@ Auth is **demo-only**: the UI sends `X-User-Id` (use the header **Act as** switc
 3. Switch to **buyer** → **Create & submit for review** (pool funds with 15% fee stub).
 4. Switch to **admin** → **캠페인 사전승인** → 승인/게시.
 5. Switch to **contributor** → pick active campaign → keep default Reuters URL (allowlisted) → **Submit**.  
-   Status should become `needs_review` after automated stages.
+   Status should become `needs_review` after automated stages.  
+   Optional: try a non-allowlisted URL — you should see a clear **Allowlist rejection** message.
 6. Switch to **admin** → **제출 리뷰 큐** → 수락 (accept). Credits grant on accept.
 7. Switch to **buyer** → **Export JSONL** → **Download JSONL**.
 
@@ -59,6 +60,21 @@ cd backend && source .venv/bin/activate
 python scripts/smoke_e2e.py
 ```
 
+## Allowlist v0
+
+Seeded on startup from `backend/app/allowlist_v0.py` (~30 public EN hosts). Categories:
+
+| Category | Examples |
+|----------|----------|
+| `us_wire_national` | reuters.com, apnews.com, nytimes.com, washingtonpost.com, wsj.com, bloomberg.com, usatoday.com |
+| `us_defense_outlet` | defenseone.com, defensenews.com, militarytimes.com, breakingdefense.com, airandspaceforces.com |
+| `us_gov_military` | defense.gov, navy.mil, army.mil, af.mil, marines.mil, state.gov, whitehouse.gov |
+| `asia_en_outlet` | straitstimes.com, scmp.com, japantimes.co.jp, koreaherald.com, channelnewsasia.com, thejakartapost.com, bangkokpost.com |
+| `en_international` | bbc.com, theguardian.com |
+| `public_eo_archive` | earthobservatory.nasa.gov, usgs.gov |
+
+**Rules:** online-only; enabled hosts only; `www.` / apex both match; Admin can **add** / **disable** / **enable**. Non-allowlisted submit → `reject_reason=allowlist_reject` + EN failure message on Contributor UI. No social dumps / conflict-zone field sources. KR hosts not required in Phase-0. Founder may expand after Buyer interviews.
+
 ## Stubbed vs real
 
 **Real**
@@ -66,7 +82,7 @@ python scripts/smoke_e2e.py
 - Org KYB status gate before campaign create
 - Campaign status machine (`draft`/`pending_review` → `active`)
 - EN OSINT submission schema (source URL + labels JSON)
-- Allowlist host evaluation + Admin host add
+- Allowlist v0 seed + evaluation + Admin list/add/disable
 - Automated verification stage events (tech → schema → provenance → duplicate → fraud → synthetic → quality → route)
 - Manual accept/reject + reason / KO memo
 - CreditLedger `pool_fund` / `fee` / `reward` / `redeem_reserve`
@@ -78,7 +94,7 @@ python scripts/smoke_e2e.py
 - Redis async worker; ML fraud/deepfake
 - S3 storage; on-chain token; CV template
 - Fiat invoice automation; analytics dashboards
-- Production EN allowlist domains (placeholders only)
+- Per-campaign allowlist subset (global list only for now)
 
 ## Safety notes
 

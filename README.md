@@ -43,7 +43,7 @@ Full click-path: [docs/mvp-slice-runbook.md](./docs/mvp-slice-runbook.md) (also 
 | KYB status flag approve/reject | Full KYB document workflow |
 | Campaign draft → pending_review → active | Pause/close settlement polish |
 | OSINT submit (URL + labels JSON) | CV template, media upload |
-| Allowlist host check (config + Admin add) | Founder-filled production host list |
+| Allowlist v0 (~30 EN public hosts) + Admin disable | Per-campaign allowlist subset; further founder expand |
 | Verification stages 1–7 (heuristic) | Redis worker, deepfake ML, perceptual hash |
 | Manual accept/reject queue | Validator marketplace |
 | CreditLedger reward + redeem_reserve | On-chain token / TGE |

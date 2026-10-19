@@ -71,7 +71,8 @@ class AllowlistHost(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     host: Mapped[str] = mapped_column(String(255), index=True)
-    category: Mapped[str] = mapped_column(String(128), default="placeholder")
+    category: Mapped[str] = mapped_column(String(128), default="admin_added")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
