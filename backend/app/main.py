@@ -33,6 +33,9 @@ app.include_router(media.router)
 
 @app.on_event("startup")
 def on_startup() -> None:
+    # Phase-0 schema strategy: create_all on boot (no Alembic yet).
+    # SQLite also gets lightweight ALTER patches via ensure_sqlite_columns.
+    # Postgres relies on create_all against an empty DB (compose volume wipe to reset).
     Base.metadata.create_all(bind=engine)
     ensure_sqlite_columns(engine)
     db = SessionLocal()

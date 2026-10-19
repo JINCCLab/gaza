@@ -7,9 +7,22 @@ How to run the coding slice and walk OSINT and CV happy paths (same platform).
 - Python **3.9+** (backend uses `Optional`/`List`/`Dict` — FastAPI-safe on 3.9; no PEP 604 `X | Y`)
 - Node 20+
 - Repo branch with `backend/` + `frontend/`
+- Optional: Docker + Compose (Postgres path)
 - Optional: Clerk application keys (see [auth-clerk.md](./auth-clerk.md); production checklist in project store `docs/clerk-deploy-setup.md`)
 
+## Database
+
+| Mode | How | Schema |
+|------|-----|--------|
+| **SQLite (default)** | Leave `DATABASE_URL` unset → `./data/data_platform.db` | `Base.metadata.create_all` + `ensure_sqlite_columns` patches |
+| **Postgres (Compose)** | `docker compose up --build db api` sets `DATABASE_URL` for the API service | `create_all` on empty DB; **no Alembic yet** — `docker compose down -v` to wipe |
+| **Postgres (host API)** | `docker compose up -d db` then export `DATABASE_URL=postgresql+psycopg://dataplat:dataplat@127.0.0.1:5432/data_platform` | Same `create_all` |
+
+Driver: `psycopg` v3 (`postgresql+psycopg://…` in SQLAlchemy). Credentials match `docker-compose.yml`.
+
 ## Start services
+
+### Option A — local SQLite (no Docker)
 
 **Terminal A — API**
 
@@ -28,6 +41,13 @@ cd frontend
 npm install
 # optional: frontend/.env.local with NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY + NEXT_PUBLIC_API_URL
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev
+```
+
+### Option B — Docker Compose (Postgres + API)
+
+```bash
+docker compose up --build db api
+# optional Next.js UI: docker compose --profile ui up --build
 ```
 
 - UI: http://localhost:3000  
@@ -88,9 +108,11 @@ CV category whitelist (defaults): `parade_public`, `museum_exhibit`, `official_p
 ```bash
 cd backend && source .venv/bin/activate
 python scripts/smoke_e2e.py
+# against Compose API:
+# python scripts/smoke_e2e.py http://127.0.0.1:8000
 ```
 
-Covers OSINT allowlist reject + accept/export, and CV upload + synthetic reject + duplicate reject + accept/export.
+Covers OSINT allowlist reject + accept/export, and CV upload + synthetic reject + duplicate reject + accept/export. Works on SQLite or Postgres equally (same API).
 
 ## Allowlist v0
 

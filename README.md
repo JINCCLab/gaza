@@ -33,6 +33,36 @@ cd backend && source .venv/bin/activate
 python scripts/smoke_e2e.py
 ```
 
+## Docker Compose (Postgres + API)
+
+SQLite remains the zero-config local default. For a Postgres-backed stack:
+
+```bash
+docker compose up --build db api
+# optional UI: docker compose --profile ui up --build
+```
+
+- API: http://127.0.0.1:8000 (`DATABASE_URL` points at service `db`)
+- Postgres: `localhost:5432` — user/pass/db `dataplat` / `dataplat` / `data_platform`
+- Schema: `create_all` on API startup (no Alembic yet; wipe the `pgdata` volume to reset)
+
+Smoke against Compose API:
+
+```bash
+cd backend && source .venv/bin/activate
+pip install -r requirements.txt   # needs httpx for the script
+python scripts/smoke_e2e.py http://127.0.0.1:8000
+```
+
+Host-run API against Compose Postgres only:
+
+```bash
+docker compose up -d db
+cd backend && source .venv/bin/activate
+export DATABASE_URL=postgresql+psycopg://dataplat:dataplat@127.0.0.1:5432/data_platform
+uvicorn app.main:app --reload --port 8000
+```
+
 ## With Clerk keys
 
 1. Copy [`.env.example`](./.env.example) into `backend/.env` and `frontend/.env.local`.
@@ -50,7 +80,7 @@ Full click-path: [docs/mvp-slice-runbook.md](./docs/mvp-slice-runbook.md).
 |--------------------|--------------------|
 | Clerk JWT + local Bearer session fallback | Production Clerk org sync / webhooks polish |
 | Dual templates `osint_label` + `cv_media` (local media upload) | S3 media; ML deepfake / perceptual hash |
-| Domain models + SQLite persistence | — |
+| Domain models + SQLite default / Postgres via `DATABASE_URL` + Compose | Alembic migrations (create_all for now) |
 | KYB status flag approve/reject | Full KYB document workflow |
 | Campaign draft → pending_review → active | Pause/close settlement polish |
 | OSINT + CV submit (URL/labels or upload+annotation) | Perceptual hash / commercial deepfake stack |
@@ -67,7 +97,9 @@ backend/          FastAPI app
 frontend/         Next.js App Router UI
 docs/             Runbook + auth notes
 .env.example      Clerk + DATABASE_URL template
-docker-compose.yml  Optional Postgres
-data/             SQLite DB (gitignored)
+docker-compose.yml  Postgres + API (+ optional UI profile)
+backend/Dockerfile  API image
+frontend/Dockerfile UI image (`--profile ui`)
+data/             SQLite DB + media (gitignored)
 exports/          Generated JSONL (gitignored)
 ```

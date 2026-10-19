@@ -19,6 +19,8 @@ AuthMode = Literal["auto", "clerk", "dev"]
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    # Unset / default → SQLite file under ./data. Set DATABASE_URL for Postgres
+    # (e.g. postgresql+psycopg://dataplat:dataplat@127.0.0.1:5432/data_platform).
     database_url: str = f"sqlite:///{DATA_DIR / 'data_platform.db'}"
     export_dir: str = str(EXPORT_DIR)
     media_dir: str = str(MEDIA_DIR)
