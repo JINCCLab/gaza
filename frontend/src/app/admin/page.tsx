@@ -61,11 +61,18 @@ export default function AdminPage() {
   return (
     <div className="stack">
       <div className="panel">
-        <h2>Admin 운영 콘솔</h2>
-        <p className="muted">
-          KYB 승인 → 캠페인 사전승인 (OSINT / CV) → 제출 수동 큐. Founder ops UI (KO/EN). CV는
-          synthetic_allowed=false 기본, 민감·합성 사유 코드 사용.
-        </p>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <div>
+            <h2>Admin 운영 콘솔</h2>
+            <p className="muted">
+              KYB 승인 → 캠페인 사전승인 (OSINT / CV) → 제출 수동 큐. Founder ops UI (KO/EN). CV는
+              synthetic_allowed=false 기본, 민감·합성 사유 코드 사용.
+            </p>
+          </div>
+          <Link href="/admin/analytics" className="btn secondary" style={{ textDecoration: "none" }}>
+            분석 / Analytics
+          </Link>
+        </div>
         {msg && <p className="success">{msg}</p>}
         {err && <p className="error">{err}</p>}
       </div>

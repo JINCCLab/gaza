@@ -244,3 +244,54 @@ class HealthOut(BaseModel):
     redis: str = "unset"
     storage_backend: str = "local"
     storage: str = "ok"
+
+
+# --- Admin analytics (Phase-0 founder ops) ---
+
+
+class CountByKey(BaseModel):
+    key: str
+    count: int
+
+
+class FunnelRates(BaseModel):
+    accepted: int
+    rejected: int
+    needs_review: int
+    pending_verify: int
+    decided: int
+    accept_rate: Optional[float] = None
+    reject_rate: Optional[float] = None
+
+
+class CreditsSummary(BaseModel):
+    rewards_granted_total: float
+    reward_entries: int
+    pool_funded_total: float
+    contributor_balances_total: float
+
+
+class CampaignAnalyticsRow(BaseModel):
+    campaign_id: int
+    title: str
+    data_type: str
+    status: str
+    submissions_total: int
+    accepted: int
+    rejected: int
+    needs_review: int
+    reward_pool: float
+    reward_remaining: float
+    credits_granted: float
+
+
+class AdminAnalyticsOut(BaseModel):
+    campaigns_total: int
+    campaigns_by_status: List[CountByKey]
+    submissions_total: int
+    submissions_by_status: List[CountByKey]
+    funnel: FunnelRates
+    reject_reasons: List[CountByKey]
+    credits: CreditsSummary
+    orgs_by_kyb: List[CountByKey]
+    per_campaign: List[CampaignAnalyticsRow]

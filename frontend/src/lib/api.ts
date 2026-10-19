@@ -103,6 +103,45 @@ export type AuthConfig = {
   has_clerk_publishable_key: boolean;
 };
 
+export type CountByKey = { key: string; count: number };
+
+export type AdminAnalytics = {
+  campaigns_total: number;
+  campaigns_by_status: CountByKey[];
+  submissions_total: number;
+  submissions_by_status: CountByKey[];
+  funnel: {
+    accepted: number;
+    rejected: number;
+    needs_review: number;
+    pending_verify: number;
+    decided: number;
+    accept_rate: number | null;
+    reject_rate: number | null;
+  };
+  reject_reasons: CountByKey[];
+  credits: {
+    rewards_granted_total: number;
+    reward_entries: number;
+    pool_funded_total: number;
+    contributor_balances_total: number;
+  };
+  orgs_by_kyb: CountByKey[];
+  per_campaign: Array<{
+    campaign_id: number;
+    title: string;
+    data_type: string;
+    status: string;
+    submissions_total: number;
+    accepted: number;
+    rejected: number;
+    needs_review: number;
+    reward_pool: number;
+    reward_remaining: number;
+    credits_granted: number;
+  }>;
+};
+
 type TokenGetter = () => Promise<string | null>;
 
 let tokenGetter: TokenGetter | null = null;
@@ -211,4 +250,5 @@ export const api = {
       { method: "POST" }
     ),
   downloadUrl: (datasetId: number) => `${API_BASE}/api/datasets/${datasetId}/download`,
+  adminAnalytics: () => request<AdminAnalytics>("/api/admin/analytics"),
 };

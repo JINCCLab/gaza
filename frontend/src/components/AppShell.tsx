@@ -30,7 +30,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className={path === "/" ? "active" : ""}>
             Home
           </Link>
-          <Link href="/admin" className={path.startsWith("/admin") ? "active" : ""}>
+          <Link
+            href="/admin"
+            className={path === "/admin" || path.startsWith("/admin/") ? "active" : ""}
+          >
             Admin (KO)
           </Link>
           <Link href="/buyer" className={path.startsWith("/buyer") ? "active" : ""}>
