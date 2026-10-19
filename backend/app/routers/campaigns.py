@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.campaign_types import default_requirements, validate_campaign_pair
 from app.database import get_db
 from app.deps import get_current_user, require_role
 from app.models import AuditLog, Campaign, Organization, User
@@ -42,15 +43,27 @@ def create_campaign(
     if not org or org.kyb_status != "approved":
         raise HTTPException(403, "Org KYB must be approved before creating campaigns")
 
+    try:
+        data_type, data_class = validate_campaign_pair(body.data_type, body.data_class)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+    requirements = body.requirements_json or {}
+    if not requirements:
+        requirements = default_requirements(data_type)
+
+    # Phase-0: synthetic_allowed stays false unless explicitly requested (CV default locked).
+    synthetic_allowed = bool(body.synthetic_allowed)
+
     campaign = Campaign(
         organization_id=org.id,
         title=body.title,
         description=body.description,
-        data_type=body.data_type,
-        data_class=body.data_class,
+        data_type=data_type,
+        data_class=data_class,
         target_region=body.target_region,
-        requirements_json=body.requirements_json,
-        synthetic_allowed=body.synthetic_allowed,
+        requirements_json=requirements,
+        synthetic_allowed=synthetic_allowed,
         target_quantity=body.target_quantity,
         unit_reward=body.unit_reward,
         status="draft",

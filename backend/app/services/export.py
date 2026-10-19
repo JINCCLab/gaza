@@ -35,18 +35,22 @@ def build_dataset_export(
 
     items = []
     for s in accepted:
-        items.append(
-            {
-                "submission_id": s.id,
-                "source_url": s.source_url,
-                "labels": s.labels_json,
-                "metadata": s.metadata_json,
-                "file_hash": s.file_hash,
-                "quality_score": s.quality_score,
-                "final_reward": s.final_reward,
-                "accepted_at": s.created_at.isoformat() + "Z",
-            }
-        )
+        item = {
+            "submission_id": s.id,
+            "source_url": s.source_url,
+            "storage_key": s.storage_key,
+            "labels": s.labels_json,
+            "annotation": s.labels_json if (s.metadata_json or {}).get("template") == "cv_media" else None,
+            "metadata": s.metadata_json,
+            "file_hash": s.file_hash,
+            "quality_score": s.quality_score,
+            "synthetic_score": s.synthetic_score,
+            "final_reward": s.final_reward,
+            "accepted_at": s.created_at.isoformat() + "Z",
+            "data_type": campaign.data_type,
+            "data_class": campaign.data_class,
+        }
+        items.append(item)
 
     export_dir = Path(settings.export_dir)
     export_dir.mkdir(parents=True, exist_ok=True)
@@ -62,6 +66,7 @@ def build_dataset_export(
         "campaign_title": campaign.title,
         "data_type": campaign.data_type,
         "data_class": campaign.data_class,
+        "synthetic_allowed": campaign.synthetic_allowed,
         "version": version,
         "item_count": len(items),
         "format": "jsonl",

@@ -1,6 +1,6 @@
-# MVP slice runbook — Phase-0 OSINT vertical
+# MVP slice runbook — Phase-0 dual wedge (OSINT + CV)
 
-How to run the coding slice and walk the happy path (after IdP auth slice).
+How to run the coding slice and walk OSINT and CV happy paths (same platform).
 
 ## Prerequisites
 
@@ -38,82 +38,84 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev
 
 ## Auth (Clerk or local session)
 
-**IdP choice: Clerk** — faster Next.js + FastAPI JWT wiring than Supabase Auth for this stack. Details: [auth-clerk.md](./auth-clerk.md).
+**IdP choice: Clerk** — see [auth-clerk.md](./auth-clerk.md).
 
 | Mode | When | How to sign in |
 |------|------|----------------|
 | **Clerk** | `CLERK_SECRET_KEY` + issuer/JWKS set | UI Clerk widget; API verifies Bearer session JWT |
 | **Dev** (default without keys) | Keys missing / `AUTH_MODE=dev` | `/sign-in` persona → `POST /api/auth/dev-login` → Bearer JWT in `localStorage` |
 
-Roles: **admin** / **buyer** / **contributor** (Clerk `publicMetadata.role` or seed emails).
-
-`X-User-Id` / header **Act as** are **retired**. APIs require `Authorization: Bearer <token>`.
-
-Seeded personas (dev):
+Roles: **admin** / **buyer** / **contributor**. APIs require `Authorization: Bearer <token>` (`X-User-Id` retired).
 
 | Role | Email | Notes |
 |------|-------|--------|
 | admin | admin@demo.local | Founder ops (KO UI) |
 | buyer | buyer@demo.local | Org KYB starts `pending` |
-| contributor | contributor@demo.local | EN submit UI |
+| contributor | contributor@demo.local | EN submit UI (OSINT + CV) |
 
-## Click path (happy path)
+## Campaign templates (dual wedge)
 
-1. Open http://localhost:3000/sign-in → sign in as **admin** (persona or Clerk).
-2. **Admin → Org KYB** → 승인 (approve) Demo OSINT Intel Firm.
-3. Sign out / Switch account → **buyer** → **Create & submit for review** (pool funds with 15% fee stub).
-4. Switch to **admin** → **캠페인 사전승인** → 승인/게시.
-5. Switch to **contributor** → pick active campaign → keep default Reuters URL (allowlisted) → **Submit**.  
-   Status should become `needs_review` after automated stages.  
-   Optional: try a non-allowlisted URL — you should see a clear **Allowlist rejection** message.
-6. Switch to **admin** → **제출 리뷰 큐** → 수락 (accept). Credits grant on accept.
-7. Switch to **buyer** → **Export JSONL** → **Download JSONL**.
+| `data_type` | `data_class` | Contributor payload | Notes |
+|-------------|--------------|---------------------|--------|
+| `osint_label` | `structured_osint` | allowlisted source URL + event/location/time/equipment labels | Phase-0 first wedge |
+| `cv_media` | `public_scene_cv` | media **upload** and/or allowlisted URL + annotation `{category, caption, bboxes[]}` | `synthetic_allowed=false` by default |
 
-Optional API smoke (dev auth; API must be up):
+CV category whitelist (defaults): `parade_public`, `museum_exhibit`, `official_promo`, `public_airshow`, `open_training_viewing`.
+
+## Click path — OSINT
+
+1. `/sign-in` → **admin** → Org KYB 승인.
+2. **buyer** → template `osint_label` → Create & submit for review.
+3. **admin** → 캠페인 사전승인 → 승인/게시.
+4. **contributor** → Reuters (allowlisted) URL + labels → Submit → `needs_review`.
+5. **admin** → 수락 → credits.
+6. **buyer** → Export / Download JSONL.
+
+## Click path — CV
+
+1. KYB already approved (same org).
+2. **buyer** → template **`cv_media`** → Create & submit (`synthetic_allowed=false`).
+3. **admin** → 승인/게시.
+4. **contributor** → pick CV campaign → upload PNG/JPEG/WebP/MP4 **or** allowlisted media URL → category + caption + bboxes → Submit → `needs_review`.  
+   - Synthetic claim with `synthetic_allowed=false` → auto-reject `synthetic_not_allowed`.  
+   - Duplicate same media+anno → `duplicate`.  
+   - Non-allowlisted URL (when URL used) → `allowlist_reject`.
+5. **admin** → 수락 (or **민감거절** / 합성 의심 거절).
+6. **buyer** → Export JSONL (includes `storage_key` + annotation).
+
+## API smoke (both paths)
 
 ```bash
 cd backend && source .venv/bin/activate
 python scripts/smoke_e2e.py
 ```
 
+Covers OSINT allowlist reject + accept/export, and CV upload + synthetic reject + duplicate reject + accept/export.
+
 ## Allowlist v0
 
-Seeded on startup from `backend/app/allowlist_v0.py` (~30 public EN hosts). Categories:
-
-| Category | Examples |
-|----------|----------|
-| `us_wire_national` | reuters.com, apnews.com, nytimes.com, washingtonpost.com, wsj.com, bloomberg.com, usatoday.com |
-| `us_defense_outlet` | defenseone.com, defensenews.com, militarytimes.com, breakingdefense.com, airandspaceforces.com |
-| `us_gov_military` | defense.gov, navy.mil, army.mil, af.mil, marines.mil, state.gov, whitehouse.gov |
-| `asia_en_outlet` | straitstimes.com, scmp.com, japantimes.co.jp, koreaherald.com, channelnewsasia.com, thejakartapost.com, bangkokpost.com |
-| `en_international` | bbc.com, theguardian.com |
-| `public_eo_archive` | earthobservatory.nasa.gov, usgs.gov |
-
-**Rules:** online-only; enabled hosts only; `www.` / apex both match; Admin can **add** / **disable** / **enable**. Non-allowlisted submit → `reject_reason=allowlist_reject` + EN failure message on Contributor UI. No social dumps / conflict-zone field sources. KR hosts not required in Phase-0. Founder may expand after Buyer interviews.
+Seeded from `backend/app/allowlist_v0.py` (~30 public EN hosts). Online-only; no social dumps / conflict-zone field sources. Admin can add/disable/enable. Applies to OSINT URLs and CV media URLs (uploads skip host check but still require license claim + category whitelist).
 
 ## Stubbed vs real
 
 **Real**
 
-- **Clerk IdP integration** (+ local Bearer JWT session fallback)
-- Org KYB status gate before campaign create
-- Campaign status machine (`draft`/`pending_review` → `active`)
-- EN OSINT submission schema (source URL + labels JSON)
-- Allowlist v0 seed + evaluation + Admin list/add/disable
-- Automated verification stage events (tech → schema → provenance → duplicate → fraud → synthetic → quality → route)
-- Manual accept/reject + reason / KO memo
-- CreditLedger `pool_fund` / `fee` / `reward` / `redeem_reserve`
-- Dataset version + local JSONL export download
+- Clerk IdP (+ local Bearer JWT fallback)
+- Dual templates: `osint_label` | `cv_media` on one platform
+- CV local media upload (`data/media/`) + annotation schema
+- CV verification stages (type/schema/allowlist-or-upload provenance/duplicate/synthetic gate)
+- Shared manual review queue, CreditLedger, Dataset JSONL export
 
-**Stubbed / not in this slice**
+**Stubbed / deferred**
 
-- KYB document upload
-- Redis async worker; ML fraud/deepfake
-- S3 storage; on-chain token; CV template
-- Fiat invoice automation; analytics dashboards
-- Per-campaign allowlist subset (global list only for now)
+- KYB document upload; Redis worker; ML deepfake / perceptual hash
+- S3 object storage (local disk for CV media)
+- On-chain token; fiat automation; analytics dashboards
+- Per-campaign allowlist subset
 
 ## Safety notes
 
-- Online-only OSINT; no conflict-zone field collection UX
-- Contributor/Buyer copy = English; Admin = Korean labels where useful
+- Online-only; no conflict-zone field collection UX
+- CV public scenes only (parade / museum / official promo / airshow / open viewing)
+- `synthetic_allowed=false` Phase-0 default
+- Contributor/Buyer = English; Admin = Korean labels where useful

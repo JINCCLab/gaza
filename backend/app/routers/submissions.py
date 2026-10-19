@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.campaign_types import is_cv_campaign
 from app.database import get_db
 from app.deps import get_current_user, require_role
 from app.models import Campaign, Submission, User, VerificationEvent
@@ -13,6 +14,7 @@ from app.schemas import (
     VerificationEventOut,
 )
 from app.services.credits import grant_reward
+from app.services.media import resolve_storage_key
 from app.services.verification import run_automated_stages
 
 router = APIRouter(prefix="/api", tags=["submissions"])
@@ -30,16 +32,50 @@ def create_submission(
     if not campaign or campaign.status != "active":
         raise HTTPException(400, "Campaign is not active")
 
-    submission = Submission(
-        campaign_id=campaign.id,
-        contributor_id=user.id,
-        source_url=body.source_url,
-        labels_json=body.labels.model_dump(),
-        metadata_json={
+    source_url = (body.source_url or "").strip()
+    storage_key = (body.storage_key or "").strip() or None
+
+    if is_cv_campaign(campaign.data_type):
+        if not body.annotation:
+            raise HTTPException(400, "CV campaign requires annotation (category, caption, bboxes)")
+        if not source_url and not storage_key:
+            raise HTTPException(400, "CV submission needs media URL and/or storage_key from upload")
+        if storage_key:
+            # Ensure key exists on disk
+            path = resolve_storage_key(storage_key)
+            if not path.is_file():
+                raise HTTPException(400, "storage_key not found; upload media first")
+        labels = body.annotation.model_dump()
+        meta = {
             "claimed_capture_time": body.claimed_capture_time,
             "license_claim": body.license_claim,
             "corridor": "online_only_en",
-        },
+            "template": "cv_media",
+            "content_type": body.content_type,
+            "sha256": body.sha256,
+            "claims_synthetic": body.claims_synthetic,
+            "safety": "no_conflict_zone_field_collection",
+        }
+    else:
+        if not body.labels:
+            raise HTTPException(400, "OSINT campaign requires labels")
+        if not source_url:
+            raise HTTPException(400, "OSINT submission requires source_url")
+        labels = body.labels.model_dump()
+        meta = {
+            "claimed_capture_time": body.claimed_capture_time,
+            "license_claim": body.license_claim,
+            "corridor": "online_only_en",
+            "template": "osint_label",
+        }
+
+    submission = Submission(
+        campaign_id=campaign.id,
+        contributor_id=user.id,
+        source_url=source_url,
+        storage_key=storage_key,
+        labels_json=labels,
+        metadata_json=meta,
         verification_status="submitted",
     )
     db.add(submission)
@@ -140,6 +176,15 @@ def review_submission(
     if not campaign or not contributor:
         raise HTTPException(400, "Missing campaign/contributor")
 
+    # CV-sensitive reason codes for Admin KO ops
+    if not body.accept and body.reason_code in (
+        "sensitive_person",
+        "sensitive_facility",
+        "synthetic_suspected",
+        "conflict_zone_field",
+    ):
+        pass  # accepted as valid reject codes
+
     if body.accept:
         try:
             reward = grant_reward(
@@ -161,6 +206,7 @@ def review_submission(
                     "reason_code": body.reason_code,
                     "internal_memo_ko": body.internal_memo_ko,
                     "reward": reward,
+                    "template": campaign.data_type,
                 },
                 actor_id=admin.id,
             )
@@ -177,6 +223,7 @@ def review_submission(
                 detail_json={
                     "reason_code": body.reason_code,
                     "internal_memo_ko": body.internal_memo_ko,
+                    "template": campaign.data_type,
                 },
                 actor_id=admin.id,
             )

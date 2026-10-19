@@ -8,8 +8,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
 EXPORT_DIR = ROOT / "exports"
+MEDIA_DIR = DATA_DIR / "media"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 AuthMode = Literal["auto", "clerk", "dev"]
 
@@ -19,8 +21,12 @@ class Settings(BaseSettings):
 
     database_url: str = f"sqlite:///{DATA_DIR / 'data_platform.db'}"
     export_dir: str = str(EXPORT_DIR)
+    media_dir: str = str(MEDIA_DIR)
     platform_fee_pct: float = 0.15
     quality_mult_cap: float = 1.5
+    # Phase-0 media upload limits (local disk; S3 later)
+    media_max_bytes: int = 8 * 1024 * 1024
+    media_allowed_types: str = "image/jpeg,image/png,image/webp,video/mp4"
 
     # Auth — prefer Clerk when keys are present (AUTH_MODE=auto).
     auth_mode: AuthMode = "auto"

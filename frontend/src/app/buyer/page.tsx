@@ -5,17 +5,35 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Campaign, type Dataset, type Org } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
+type TemplateKind = "osint_label" | "cv_media";
+
 export default function BuyerPage() {
   const { user, refresh, getAccessToken } = useAuth();
   const [org, setOrg] = useState<Org | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [template, setTemplate] = useState<TemplateKind>("osint_label");
   const [title, setTitle] = useState("EN OSINT event labels — pilot");
   const [desc, setDesc] = useState(
     "Label public open-source reporting: event type, public location, time, equipment. Online-only."
   );
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  const applyTemplateDefaults = (kind: TemplateKind) => {
+    setTemplate(kind);
+    if (kind === "cv_media") {
+      setTitle("EN CV public-scene annotations — pilot");
+      setDesc(
+        "Annotate whitelist public scenes (parade, museum, official promo, airshow, open viewing). Bounding boxes + caption. synthetic_allowed=false. No conflict-zone field collection."
+      );
+    } else {
+      setTitle("EN OSINT event labels — pilot");
+      setDesc(
+        "Label public open-source reporting: event type, public location, time, equipment. Online-only."
+      );
+    }
+  };
 
   const load = useCallback(async () => {
     if (!user || user.role !== "buyer") return;
@@ -45,7 +63,8 @@ export default function BuyerPage() {
   if (user.role !== "buyer") {
     return (
       <div className="panel">
-        Signed in as <strong>{user.role}</strong>. <Link href="/sign-in">Switch account</Link> to buyer.
+        Signed in as <strong>{user.role}</strong>. <Link href="/sign-in">Switch account</Link> to
+        buyer.
       </div>
     );
   }
@@ -80,13 +99,27 @@ export default function BuyerPage() {
       </div>
 
       <div className="panel">
-        <h3>Create OSINT campaign draft</h3>
+        <h3>Create campaign draft</h3>
+        <label>Template (same platform)</label>
+        <select
+          value={template}
+          onChange={(e) => applyTemplateDefaults(e.target.value as TemplateKind)}
+        >
+          <option value="osint_label">osint_label — structured OSINT labels</option>
+          <option value="cv_media">cv_media — public-scene CV annotations</option>
+        </select>
         <label>Title</label>
         <input value={title} onChange={(e) => setTitle(e.target.value)} />
         <label>Description</label>
         <textarea rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} />
         <p className="muted">
           Creates draft → funds pool (credits, 15% fee stub) → submits for Admin review.
+          {template === "cv_media" && (
+            <>
+              {" "}
+              CV defaults: <code>synthetic_allowed=false</code>, public scene category whitelist.
+            </>
+          )}
         </p>
         <button
           type="button"
@@ -96,15 +129,18 @@ export default function BuyerPage() {
               const c = await api.createCampaign({
                 title,
                 description: desc,
-                data_type: "osint_label",
-                data_class: "structured_osint",
+                data_type: template,
+                data_class:
+                  template === "cv_media" ? "public_scene_cv" : "structured_osint",
                 target_region: "en_us_asia",
                 synthetic_allowed: false,
                 target_quantity: 10,
-                unit_reward: 10,
+                unit_reward: template === "cv_media" ? 12 : 10,
                 pool_fund_amount: 200,
               });
-              setMsg(`Campaign #${c.id} created (${c.status}), pool=${c.reward_pool}`);
+              setMsg(
+                `Campaign #${c.id} (${c.data_type}) created (${c.status}), pool=${c.reward_pool}`
+              );
               await load();
               await refresh();
             } catch (e) {
@@ -123,6 +159,7 @@ export default function BuyerPage() {
             <tr>
               <th>ID</th>
               <th>Title</th>
+              <th>Type</th>
               <th>Status</th>
               <th>Pool / remaining</th>
               <th>Export</th>
@@ -133,6 +170,14 @@ export default function BuyerPage() {
               <tr key={c.id}>
                 <td>{c.id}</td>
                 <td>{c.title}</td>
+                <td>
+                  <span className="badge">{c.data_type}</span>
+                  {c.synthetic_allowed ? (
+                    <span className="badge warn">synthetic</span>
+                  ) : (
+                    <span className="badge ok">real-only</span>
+                  )}
+                </td>
                 <td>
                   <span className="badge">{c.status}</span>
                 </td>
@@ -175,7 +220,6 @@ export default function BuyerPage() {
                 href={api.downloadUrl(d.id)}
                 onClick={(e) => {
                   e.preventDefault();
-                  // FileResponse needs auth header — fetch blob
                   void (async () => {
                     const token = await getAccessToken();
                     const res = await fetch(api.downloadUrl(d.id), {

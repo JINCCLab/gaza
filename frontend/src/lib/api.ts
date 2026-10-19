@@ -51,6 +51,7 @@ export type Submission = {
   campaign_id: number;
   contributor_id: number;
   source_url: string;
+  storage_key: string | null;
   labels_json: Record<string, unknown>;
   metadata_json: Record<string, unknown>;
   file_hash: string | null;
@@ -59,6 +60,14 @@ export type Submission = {
   reject_reason: string | null;
   final_reward: number | null;
   created_at: string;
+};
+
+export type MediaUpload = {
+  storage_key: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
+  media_url: string;
 };
 
 export type Dataset = {
@@ -111,10 +120,11 @@ export async function getAccessToken(): Promise<string | null> {
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const { headers, ...rest } = opts;
   const token = await getAccessToken();
+  const isForm = typeof FormData !== "undefined" && rest.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
     ...rest,
     headers: {
-      "Content-Type": "application/json",
+      ...(isForm ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(headers || {}),
     },
@@ -167,6 +177,11 @@ export const api = {
     request<Submission[]>(`/api/submissions${status ? `?status=${status}` : ""}`),
   createSubmission: (body: Record<string, unknown>) =>
     request<Submission>("/api/submissions", { method: "POST", body: JSON.stringify(body) }),
+  uploadMedia: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return request<MediaUpload>("/api/media/upload", { method: "POST", body: fd });
+  },
   reviewQueue: () => request<Submission[]>("/api/review-queue"),
   review: (id: number, body: Record<string, unknown>) =>
     request<Submission>(`/api/submissions/${id}/review`, {

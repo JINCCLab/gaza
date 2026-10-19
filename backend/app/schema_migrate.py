@@ -30,3 +30,9 @@ def ensure_sqlite_columns(engine: Engine) -> None:
                         "ON users (auth_subject)"
                     )
                 )
+        if "submissions" in tables:
+            scols = {c["name"] for c in insp.get_columns("submissions")}
+            if "storage_key" not in scols:
+                conn.execute(
+                    text("ALTER TABLE submissions ADD COLUMN storage_key VARCHAR(512)")
+                )
