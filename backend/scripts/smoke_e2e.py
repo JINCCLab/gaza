@@ -189,13 +189,50 @@ def smoke_osint(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) 
     sub = wait_verified(c, contrib_h, sub)
     assert sub["verification_status"] == "needs_review", sub
 
+    # Dual-annotate sample: first accept may land in needs_2nd_review
     sub = c.post(
         f"/api/submissions/{sub['id']}/review",
         headers=admin_h,
         json={"accept": True, "reason_code": "quality_ok", "quality_mult": 1.0},
     ).json()
+    dual_second = False
+    if sub["verification_status"] == "needs_2nd_review":
+        dual_second = True
+        assert (sub.get("metadata_json") or {}).get("dual_annotate_required") is True, sub
+        sub = c.post(
+            f"/api/submissions/{sub['id']}/review",
+            headers=admin_h,
+            json={
+                "accept": True,
+                "reason_code": "quality_ok",
+                "quality_mult": 1.0,
+                "internal_memo_ko": "2차 수락",
+            },
+        ).json()
     assert sub["verification_status"] == "accepted", sub
     assert sub["final_reward"] == 10.0, sub
+
+    # Clearer reject message on schema failure
+    assert (bad_schema.get("metadata_json") or {}).get("reject_message"), bad_schema
+
+    # Normalized-URL duplicate: trailing slash / utm should collide
+    dup = c.post(
+        "/api/submissions",
+        headers=contrib_h,
+        json={
+            "campaign_id": camp["id"],
+            "source_url": "https://www.reuters.com/smoke-article/?utm_source=x",
+            "labels": {
+                "event_type": "official_briefing",
+                "location_public": "Washington, DC",
+                "event_time": "2026-04-01",
+                "equipment_type": "aircraft",
+            },
+        },
+    ).json()
+    dup = wait_verified(c, contrib_h, dup)
+    assert dup["verification_status"] == "rejected", dup
+    assert dup["reject_reason"] == "duplicate", dup
 
     ds = c.post(f"/api/campaigns/{camp['id']}/export", headers=buyer_h).json()
     assert ds["item_count"] >= 1, ds
@@ -209,6 +246,8 @@ def smoke_osint(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) 
         "ontology_id": camp.get("ontology_id"),
         "schema_version": camp.get("schema_version"),
         "schema_reject_ok": True,
+        "dual_second_pass": dual_second,
+        "normalized_dup_ok": True,
     }
 
 
@@ -346,6 +385,17 @@ def smoke_cv(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) -> 
             "internal_memo_ko": "CV 공개 장면 수락",
         },
     ).json()
+    if sub["verification_status"] == "needs_2nd_review":
+        sub = c.post(
+            f"/api/submissions/{sub['id']}/review",
+            headers=admin_h,
+            json={
+                "accept": True,
+                "reason_code": "quality_ok",
+                "quality_mult": 1.0,
+                "internal_memo_ko": "CV 2차 수락",
+            },
+        ).json()
     assert sub["verification_status"] == "accepted", sub
     assert sub["final_reward"] == 12.0, sub
 
@@ -461,6 +511,10 @@ def main() -> None:
                     "versions": len(onto_rows),
                     "osint_pin": f"{osint.get('ontology_id')}@{osint.get('schema_version')}",
                     "schema_reject_ok": osint.get("schema_reject_ok"),
+                },
+                "quality": {
+                    "dual_second_pass": osint.get("dual_second_pass"),
+                    "normalized_dup_ok": osint.get("normalized_dup_ok"),
                 },
                 "allowlist_enabled": len(enabled),
                 "roles": {

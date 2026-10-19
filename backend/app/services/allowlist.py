@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 
 from app.models import AllowlistHost
+from app.services.url_quality import validate_url_shape
 
 
 def normalize_host(url_or_host: str) -> str:
@@ -11,11 +12,12 @@ def normalize_host(url_or_host: str) -> str:
     if "://" not in raw:
         raw = "https://" + raw
     parsed = urlparse(raw)
-    return parsed.hostname or ""
+    host = (parsed.hostname or "").rstrip(".")
+    return host
 
 
 def apex_and_www(host: str) -> Set[str]:
-    host = host.lower().strip()
+    host = host.lower().strip().rstrip(".")
     if not host:
         return set()
     if host.startswith("www."):
@@ -26,8 +28,14 @@ def apex_and_www(host: str) -> Set[str]:
 def is_host_allowed(db: Session, source_url: str) -> Tuple[bool, str, Optional[str]]:
     """
     Returns (allowed, host, failure_code).
-    Only enabled allowlist rows count. www./apex variants match.
+    Shape checks first (scheme/https, no IP literal, no userinfo), then enabled allowlist.
+    www./apex variants match.
     """
+    ok, shape_code, _msg = validate_url_shape(source_url)
+    if not ok:
+        host = normalize_host(source_url) if source_url else ""
+        return False, host, shape_code or "invalid_host"
+
     host = normalize_host(source_url)
     if not host:
         return False, "", "invalid_host"

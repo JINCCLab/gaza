@@ -23,7 +23,7 @@ from app.services.storage import ensure_bucket, storage_health
 app = FastAPI(
     title="data_platform Phase-0 API",
     description="Phase-0 dual wedge: OSINT + CV templates — KYB → campaign → submit → verify → credit → export",
-    version="0.9.0",
+    version="0.10.0",
 )
 
 app.add_middleware(
@@ -73,6 +73,8 @@ def health() -> HealthOut:
         "allowlist_v0_founder_may_expand",
         "analytics_phase0_summary_only",
         "ontology_seed_json_no_runtime_editor",
+        "url_reachability_head_stub_no_scrape",
+        "dual_annotate_sample_not_workforce",
     ]
     if s_backend == "local":
         stubbed.insert(0, "storage_local_disk_set_s3_for_object_storage")

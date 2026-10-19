@@ -16,6 +16,7 @@ MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 AuthMode = Literal["auto", "clerk", "dev"]
 VerifyMode = Literal["auto", "sync", "async"]
 StorageBackend = Literal["auto", "local", "s3"]
+UrlReachabilityMode = Literal["auto", "on", "off"]
 
 
 class Settings(BaseSettings):
@@ -49,6 +50,19 @@ class Settings(BaseSettings):
     verify_mode: VerifyMode = "auto"
     redis_url: Optional[str] = None  # e.g. redis://127.0.0.1:6379/0
     verify_queue_key: str = "verify:jobs"
+
+    # URL reachability stub (HEAD/short GET; no page scrape). auto/on attempt probe;
+    # unreachable → reject. off skips (local offline smoke).
+    url_reachability: UrlReachabilityMode = "auto"
+    url_reachability_timeout_s: float = 2.0
+    # When true, DNS/timeout rejects; when false, only flags metadata (still used if mode=on).
+    url_reachability_strict: bool = True
+
+    # Dual-annotator sample (manual review quality). Keep lean — not a labeling workforce.
+    # Rate: probability [0,1] that a submission routed to needs_review also requires 2nd accept.
+    # First N: force dual on the first N needs_review outcomes per campaign (0 = disabled).
+    dual_annotate_rate: float = 0.0
+    dual_annotate_first_n: int = 0
 
     # Auth — prefer Clerk when keys are present (AUTH_MODE=auto).
     auth_mode: AuthMode = "auto"

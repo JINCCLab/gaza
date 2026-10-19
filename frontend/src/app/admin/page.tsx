@@ -257,7 +257,11 @@ export default function AdminPage() {
       </div>
 
       <div className="panel">
-        <h3>3. 제출 리뷰 큐 (needs_review)</h3>
+        <h3>3. 제출 리뷰 큐 (needs_review / needs_2nd_review)</h3>
+        <p className="muted">
+          Dual-annotate 샘플은 1차 수락 후 <span className="mono">needs_2nd_review</span>로
+          이동하며, 2차 수락 시 크레딧 지급.
+        </p>
         <label>내부 메모 (KO)</label>
         <input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="검수 메모…" />
         {queue.length === 0 && <p className="muted">큐 비어 있음</p>}
@@ -265,6 +269,7 @@ export default function AdminPage() {
           <thead>
             <tr>
               <th>ID</th>
+              <th>Status</th>
               <th>Campaign</th>
               <th>Source / Labels</th>
               <th>Action</th>
@@ -274,6 +279,19 @@ export default function AdminPage() {
             {queue.map((s) => (
               <tr key={s.id}>
                 <td className="mono">{s.id}</td>
+                <td>
+                  <span
+                    className={`badge ${
+                      s.verification_status === "needs_2nd_review" ? "warn" : ""
+                    }`}
+                  >
+                    {s.verification_status}
+                  </span>
+                  {(s.metadata_json as { dual_annotate_required?: boolean })
+                    ?.dual_annotate_required && (
+                    <div className="muted">2인 검수 필요</div>
+                  )}
+                </td>
                 <td>{s.campaign_id}</td>
                 <td>
                   <div className="mono">{s.source_url || s.storage_key || "(no media)"}</div>
@@ -287,18 +305,22 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={async () => {
-                        await api.review(s.id, {
+                        const updated = await api.review(s.id, {
                           accept: true,
                           reason_code: "quality_ok",
                           quality_mult: 1.0,
                           internal_memo_ko: memo || "수락",
                         });
-                        setMsg(`Submission #${s.id} accepted → credit granted`);
+                        setMsg(
+                          updated.verification_status === "needs_2nd_review"
+                            ? `Submission #${s.id} → needs 2nd review (크레딧 대기)`
+                            : `Submission #${s.id} accepted → credit granted`
+                        );
                         await load();
                         await refresh();
                       }}
                     >
-                      수락
+                      {s.verification_status === "needs_2nd_review" ? "2차 수락" : "수락"}
                     </button>
                     <button
                       type="button"
