@@ -1,0 +1,16 @@
+# Optional PostgreSQL for local/prod-like runs.
+# Default demo uses SQLite (see backend DATABASE_URL).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dataplat
+      POSTGRES_PASSWORD: dataplat
+      POSTGRES_DB: data_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

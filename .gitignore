@@ -1,0 +1,19 @@
+# Python
+backend/.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+data/*.db
+exports/*.jsonl
+exports/*.json
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Env / OS
+.env
+.env.local
+.DS_Store
+*.log

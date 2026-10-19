@@ -1,0 +1,260 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { api, type Campaign, type Org, type Submission } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+
+export default function AdminPage() {
+  const { user, refresh } = useAuth();
+  const [orgs, setOrgs] = useState<Org[]>([]);
+  const [pending, setPending] = useState<Campaign[]>([]);
+  const [queue, setQueue] = useState<Submission[]>([]);
+  const [hosts, setHosts] = useState<Array<{ id: number; host: string; category: string }>>([]);
+  const [newHost, setNewHost] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [memo, setMemo] = useState("");
+
+  const load = useCallback(async () => {
+    if (!user || user.role !== "admin") return;
+    setErr(null);
+    try {
+      const [o, c, q, a] = await Promise.all([
+        api.orgs(),
+        api.campaigns(user.id, "pending_review"),
+        api.reviewQueue(user.id),
+        api.allowlist(),
+      ]);
+      setOrgs(o);
+      setPending(c);
+      setQueue(q);
+      setHosts(a);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (!user) return <p className="muted">Loading…</p>;
+  if (user.role !== "admin") {
+    return (
+      <div className="panel">
+        Switch role to <strong>admin</strong> in the header (Admin 역할로 전환하세요).
+      </div>
+    );
+  }
+
+  return (
+    <div className="stack">
+      <div className="panel">
+        <h2>Admin 운영 콘솔</h2>
+        <p className="muted">
+          KYB 승인 → 캠페인 사전승인 → 제출 수동 큐. Founder ops UI (KO/EN).
+        </p>
+        {msg && <p className="success">{msg}</p>}
+        {err && <p className="error">{err}</p>}
+      </div>
+
+      <div className="grid two">
+        <div className="panel">
+          <h3>1. Org KYB</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Org</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {orgs.map((o) => (
+                <tr key={o.id}>
+                  <td>
+                    {o.name}
+                    <div className="muted mono">{o.intended_use?.slice(0, 80)}</div>
+                  </td>
+                  <td>
+                    <span
+                      className={`badge ${
+                        o.kyb_status === "approved"
+                          ? "ok"
+                          : o.kyb_status === "rejected"
+                            ? "bad"
+                            : "warn"
+                      }`}
+                    >
+                      {o.kyb_status}
+                    </span>
+                  </td>
+                  <td>
+                    {o.kyb_status === "pending" && (
+                      <div className="row">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await api.decideKyb(user.id, o.id, true, "파일럿 KYB 승인");
+                            setMsg(`Org #${o.id} KYB approved`);
+                            await load();
+                            await refresh();
+                          }}
+                        >
+                          승인
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={async () => {
+                            await api.decideKyb(user.id, o.id, false, "자료 부족");
+                            setMsg(`Org #${o.id} KYB rejected`);
+                            await load();
+                          }}
+                        >
+                          거절
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="panel">
+          <h3>2. 캠페인 사전승인</h3>
+          {pending.length === 0 && <p className="muted">대기 캠페인 없음</p>}
+          {pending.map((c) => (
+            <div key={c.id} style={{ marginBottom: "0.75rem" }}>
+              <strong>
+                #{c.id} {c.title}
+              </strong>
+              <div className="muted">
+                pool={c.reward_pool} remaining={c.reward_remaining} unit={c.unit_reward}
+              </div>
+              <div className="row" style={{ marginTop: "0.4rem" }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await api.decideCampaign(user.id, c.id, true, "정책 통과 — publish");
+                    setMsg(`Campaign #${c.id} published (active)`);
+                    await load();
+                  }}
+                >
+                  승인/게시
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={async () => {
+                    await api.decideCampaign(user.id, c.id, false, "요구사항 불충분");
+                    setMsg(`Campaign #${c.id} rejected`);
+                    await load();
+                  }}
+                >
+                  거절
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3>3. 제출 리뷰 큐 (needs_review)</h3>
+        <label>내부 메모 (KO)</label>
+        <input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="검수 메모…" />
+        {queue.length === 0 && <p className="muted">큐 비어 있음</p>}
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Campaign</th>
+              <th>Source / Labels</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {queue.map((s) => (
+              <tr key={s.id}>
+                <td className="mono">{s.id}</td>
+                <td>{s.campaign_id}</td>
+                <td>
+                  <div className="mono">{s.source_url}</div>
+                  <div className="muted mono">{JSON.stringify(s.labels_json)}</div>
+                </td>
+                <td>
+                  <div className="row">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await api.review(user.id, s.id, {
+                          accept: true,
+                          reason_code: "quality_ok",
+                          quality_mult: 1.0,
+                          internal_memo_ko: memo || "수락",
+                        });
+                        setMsg(`Submission #${s.id} accepted → credit granted`);
+                        await load();
+                        await refresh();
+                      }}
+                    >
+                      수락
+                    </button>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={async () => {
+                        await api.review(user.id, s.id, {
+                          accept: false,
+                          reason_code: "label_quality",
+                          internal_memo_ko: memo || "라벨 품질 부족",
+                        });
+                        setMsg(`Submission #${s.id} rejected`);
+                        await load();
+                      }}
+                    >
+                      거절
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="panel">
+        <h3>Allowlist hosts (stub)</h3>
+        <ul className="mono muted">
+          {hosts.map((h) => (
+            <li key={h.id}>
+              {h.host} <span className="badge">{h.category}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="row">
+          <input
+            style={{ marginBottom: 0, maxWidth: 280 }}
+            value={newHost}
+            onChange={(e) => setNewHost(e.target.value)}
+            placeholder="add host e.g. bbc.com"
+          />
+          <button
+            type="button"
+            className="secondary"
+            onClick={async () => {
+              await api.addAllowlist(user.id, newHost);
+              setNewHost("");
+              await load();
+            }}
+          >
+            호스트 추가
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
