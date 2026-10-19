@@ -135,8 +135,8 @@ CV category whitelist (defaults): `parade_public`, `museum_exhibit`, `official_p
 2. **admin** → Org KYB 문서 확인 → 승인 (KO 메모 가능). (ops metrics: `/admin/analytics`)
 3. **buyer** → template `osint_label` → Create & submit for review.
 4. **admin** → 캠페인 사전승인 → 승인/게시.
-5. **contributor** → Reuters (allowlisted) URL + labels → Submit → (`in_review` if async) → `needs_review`.
-6. **admin** → 수락 → credits.
+5. **contributor** → Reuters (allowlisted) URL + labels → Submit → (`in_review` if async) → `needs_review` (dual sample may require `needs_2nd_review`).
+6. **admin** → 수락 (dual이면 2차 수락) → credits. Reject reasons show clear EN copy for contributors.
 7. **buyer** → Export / Download JSONL.
 
 ## Click path — CV
@@ -182,6 +182,7 @@ Seeded from `backend/app/allowlist_v0.py` (~30 public EN hosts). Online-only; no
 - Admin analytics summary: `GET /api/admin/analytics` + UI `/admin/analytics` (campaign status, submission outcomes, accept/reject rates, credits, per-campaign counts)
 - KYB document **stub**: buyer `POST /api/orgs/{id}/kyb/packet` (+ optional `/kyb/upload`); admin views packet + approve/reject with KO memo (`POST .../kyb`)
 - Versioned ontology: seed JSON `osint_label@0.1.0` / `cv_media@0.1.0`; campaigns pin `ontology_id`+`schema_version`; verify rejects schema mismatches — see [osint-ontology-v0.md](./osint-ontology-v0.md)
+- Verify quality: stricter URL shape + ontology enums; allowlist; HEAD reachability stub (`URL_REACHABILITY=auto|on|off`); normalized-URL duplicates; clearer `metadata.reject_message`; dual-annotator sample (`DUAL_ANNOTATE_RATE` / `DUAL_ANNOTATE_FIRST_N` → `needs_2nd_review`)
 
 **Stubbed / deferred**
 
@@ -189,6 +190,7 @@ Seeded from `backend/app/allowlist_v0.py` (~30 public EN hosts). Online-only; no
 - On-chain token; fiat automation; full BI / charting
 - Per-campaign allowlist subset
 - Runtime ontology editor (edit seed JSON + bump version instead)
+- Full multi-annotator workforce / consensus product
 
 ## Safety notes
 

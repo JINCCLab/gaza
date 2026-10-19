@@ -21,16 +21,19 @@ const CV_CATEGORIES = [
   "open_training_viewing",
 ];
 
-function allowlistFailureMessage(s: Submission): string | null {
-  if (s.verification_status !== "rejected" || s.reject_reason !== "allowlist_reject") {
-    return null;
+function rejectMessage(s: Submission): string | null {
+  if (s.verification_status !== "rejected") return null;
+  const metaMsg = s.metadata_json?.reject_message;
+  if (typeof metaMsg === "string" && metaMsg.trim()) return metaMsg;
+  if (s.reject_reason === "allowlist_reject") {
+    const detail = s.metadata_json?.allowlist_failure as
+      | { host?: string; message?: string }
+      | undefined;
+    if (detail?.message) return detail.message;
+    const host = detail?.host || "(unknown)";
+    return `Allowlist failure: source host "${host}" is not an allowed public EN news/official host (or was disabled). Online-only — no conflict-zone field collection.`;
   }
-  const detail = s.metadata_json?.allowlist_failure as
-    | { host?: string; message?: string }
-    | undefined;
-  if (detail?.message) return detail.message;
-  const host = detail?.host || "(unknown)";
-  return `Allowlist failure: source host "${host}" is not an allowed public EN news/official host (or was disabled). Online-only — no conflict-zone field collection.`;
+  return s.reject_reason || null;
 }
 
 function isCv(c: Campaign | undefined): boolean {
@@ -275,10 +278,10 @@ export default function ContributorPage() {
                   claimed_capture_time: eventTime,
                   license_claim: "public_reporting_fair_use_claim",
                 });
-                const al = allowlistFailureMessage(s);
-                if (al) {
-                  setAllowlistErr(al);
-                  setMsg(`Submission #${s.id} rejected (allowlist)`);
+                const rm = rejectMessage(s);
+                if (rm) {
+                  setAllowlistErr(rm);
+                  setMsg(`Submission #${s.id} rejected (${s.reject_reason || "policy"})`);
                 } else {
                   setMsg(`Submission #${s.id} → ${s.verification_status}`);
                 }
@@ -314,14 +317,10 @@ export default function ContributorPage() {
                   license_claim: "public_official_or_museum_media_claim",
                   claims_synthetic: claimsSynthetic,
                 });
-                const al = allowlistFailureMessage(s);
-                if (al) {
-                  setAllowlistErr(al);
-                  setMsg(`Submission #${s.id} rejected (allowlist)`);
-                } else if (s.reject_reason === "synthetic_not_allowed") {
-                  setMsg(`Submission #${s.id} rejected — synthetic not allowed on this campaign`);
-                } else if (s.reject_reason === "duplicate") {
-                  setMsg(`Submission #${s.id} rejected — duplicate hash`);
+                const rm = rejectMessage(s);
+                if (rm) {
+                  setAllowlistErr(rm);
+                  setMsg(`Submission #${s.id} rejected (${s.reject_reason || "policy"})`);
                 } else {
                   setMsg(`Submission #${s.id} → ${s.verification_status}`);
                 }
@@ -351,7 +350,7 @@ export default function ContributorPage() {
             </thead>
             <tbody>
               {subs.map((s) => {
-                const al = allowlistFailureMessage(s);
+                const rm = rejectMessage(s);
                 return (
                   <tr key={s.id}>
                     <td>{s.id}</td>
@@ -371,7 +370,7 @@ export default function ContributorPage() {
                       {s.storage_key && <div className="mono muted">file:{s.storage_key}</div>}
                     </td>
                     <td className="muted" style={{ maxWidth: 280 }}>
-                      {al || s.reject_reason || "—"}
+                      {rm || "—"}
                     </td>
                     <td className="mono">{s.final_reward ?? "—"}</td>
                   </tr>

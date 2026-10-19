@@ -49,7 +49,7 @@ def admin_analytics(
     submissions_total = sum(status_map.values())
     accepted = status_map.get("accepted", 0)
     rejected = status_map.get("rejected", 0)
-    needs_review = status_map.get("needs_review", 0)
+    needs_review = status_map.get("needs_review", 0) + status_map.get("needs_2nd_review", 0)
     in_review = status_map.get("in_review", 0) + status_map.get("submitted", 0)
     decided = accepted + rejected
     accept_rate = (accepted / decided) if decided else None

@@ -171,9 +171,10 @@ def review_queue(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_role("admin")),
 ):
+    """Manual queue: first review + dual-annotator second pass."""
     return (
         db.query(Submission)
-        .filter(Submission.verification_status == "needs_review")
+        .filter(Submission.verification_status.in_(("needs_review", "needs_2nd_review")))
         .order_by(Submission.id.asc())
         .all()
     )
@@ -189,13 +190,19 @@ def review_submission(
     submission = db.get(Submission, submission_id)
     if not submission:
         raise HTTPException(404, "Not found")
-    if submission.verification_status != "needs_review":
-        raise HTTPException(400, f"Not in needs_review (status={submission.verification_status})")
+    status = submission.verification_status
+    if status not in ("needs_review", "needs_2nd_review"):
+        raise HTTPException(
+            400, f"Not in review queue (status={status}; expected needs_review|needs_2nd_review)"
+        )
 
     campaign = db.get(Campaign, submission.campaign_id)
     contributor = db.get(User, submission.contributor_id)
     if not campaign or not contributor:
         raise HTTPException(400, "Missing campaign/contributor")
+
+    meta = dict(submission.metadata_json or {})
+    dual_required = bool(meta.get("dual_annotate_required"))
 
     # CV-sensitive reason codes for Admin KO ops
     if not body.accept and body.reason_code in (
@@ -207,6 +214,40 @@ def review_submission(
         pass  # accepted as valid reject codes
 
     if body.accept:
+        # Dual sample: first accept → needs_2nd_review (no credit yet)
+        if status == "needs_review" and dual_required:
+            meta["dual_annotate_status"] = "awaiting_second"
+            meta["first_reviewer_id"] = admin.id
+            meta["first_review_memo_ko"] = body.internal_memo_ko
+            submission.metadata_json = meta
+            submission.verification_status = "needs_2nd_review"
+            db.add(
+                VerificationEvent(
+                    submission_id=submission.id,
+                    stage="manual",
+                    result="needs_2nd_review",
+                    detail_json={
+                        "reason_code": body.reason_code,
+                        "internal_memo_ko": body.internal_memo_ko,
+                        "template": campaign.data_type,
+                        "dual_annotate": True,
+                        "pass": 1,
+                    },
+                    actor_id=admin.id,
+                )
+            )
+            db.commit()
+            db.refresh(submission)
+            return submission
+
+        if status == "needs_2nd_review":
+            first_id = meta.get("first_reviewer_id")
+            meta["second_reviewer_id"] = admin.id
+            meta["dual_annotate_status"] = "complete"
+            if first_id and int(first_id) == admin.id:
+                meta["dual_same_reviewer"] = True  # Phase-0 lean: allowed with single admin
+            submission.metadata_json = meta
+
         try:
             reward = grant_reward(
                 db,
@@ -228,13 +269,21 @@ def review_submission(
                     "internal_memo_ko": body.internal_memo_ko,
                     "reward": reward,
                     "template": campaign.data_type,
+                    "dual_annotate": dual_required,
+                    "pass": 2 if dual_required else 1,
                 },
                 actor_id=admin.id,
             )
         )
     else:
+        from app.services.url_quality import contributor_reject_message
+
+        reason = body.reason_code or "manual_reject"
         submission.verification_status = "rejected"
-        submission.reject_reason = body.reason_code or "manual_reject"
+        submission.reject_reason = reason
+        meta["reject_message"] = contributor_reject_message(reason)
+        meta["dual_annotate_status"] = "rejected"
+        submission.metadata_json = meta
         contributor.reputation_score = round(max(contributor.reputation_score - 0.5, 0), 2)
         db.add(
             VerificationEvent(
@@ -245,6 +294,7 @@ def review_submission(
                     "reason_code": body.reason_code,
                     "internal_memo_ko": body.internal_memo_ko,
                     "template": campaign.data_type,
+                    "from_status": status,
                 },
                 actor_id=admin.id,
             )
