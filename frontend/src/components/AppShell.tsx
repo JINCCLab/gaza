@@ -1,19 +1,30 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { isClerkConfigured } from "@/components/providers";
+
+const ClerkChrome = dynamic(
+  () => import("@/components/ClerkChrome").then((m) => m.ClerkChrome),
+  { ssr: false }
+);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { users, user, setUserId, loading, error, refresh } = useAuth();
+  const { user, loading, error, refresh, signOut, authMode, signedIn } = useAuth();
   const path = usePathname();
+  const clerk = isClerkConfigured();
 
   return (
     <>
       <header className="app-header">
         <div>
           <div className="brand">data_platform</div>
-          <div className="muted">Phase-0 OSINT vertical slice (demo auth)</div>
+          <div className="muted">
+            Phase-0 OSINT · auth: {authMode === "unknown" ? "…" : authMode}
+            {clerk ? " (Clerk)" : " (local session)"}
+          </div>
         </div>
         <nav>
           <Link href="/" className={path === "/" ? "active" : ""}>
@@ -29,24 +40,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Contributor
           </Link>
         </nav>
-        <div className="row">
-          <label htmlFor="role" style={{ margin: 0 }}>
-            Act as
-          </label>
-          <select
-            id="role"
-            value={user?.id ?? ""}
-            onChange={(e) => setUserId(Number(e.target.value))}
-            style={{ marginBottom: 0, width: "auto", minWidth: 220 }}
-            disabled={loading || users.length === 0}
+        <div className="row session-bar">
+          {clerk ? (
+            <ClerkChrome user={user} />
+          ) : signedIn && user ? (
+            <>
+              <span className="muted">
+                <span className="badge">{user.role}</span> {user.display_name}
+              </span>
+              <Link href="/sign-in" className="btn secondary" style={{ textDecoration: "none" }}>
+                Switch account
+              </Link>
+              <button type="button" className="secondary" onClick={() => void signOut()}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            <Link href="/sign-in" className="btn" style={{ textDecoration: "none" }}>
+              Sign in
+            </Link>
+          )}
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => void refresh()}
+            disabled={loading}
           >
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.role} — {u.display_name}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="secondary" onClick={() => void refresh()}>
             Refresh
           </button>
         </div>
@@ -55,6 +74,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {error && (
           <div className="panel error">
             API error: {error}. Start backend on :8000 then Refresh.
+          </div>
+        )}
+        {!loading && !signedIn && path !== "/sign-in" && (
+          <div className="panel" style={{ marginBottom: "1rem" }}>
+            <strong>Signed out.</strong>{" "}
+            <Link href="/sign-in">Sign in</Link> to run KYB → campaign → submit → review → export.
           </div>
         )}
         {children}

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
-# --- Auth / identity (demo header-based) ---
+# --- Auth / identity (Bearer JWT — Clerk or local dev) ---
 
 
 class UserOut(BaseModel):
@@ -12,6 +12,7 @@ class UserOut(BaseModel):
     email: str
     display_name: str
     role: str
+    auth_subject: Optional[str] = None
     org_id: Optional[int] = None
     credit_balance: float
     redeem_reserve: float

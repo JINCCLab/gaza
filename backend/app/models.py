@@ -30,6 +30,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(32))  # contributor | buyer | admin
+    # IdP subject: Clerk user id, or "dev:<email>" for local sessions
+    auth_subject: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
     org_id: Mapped[Optional[int]] = mapped_column(ForeignKey("organizations.id"), nullable=True)
     country: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     reputation_score: Mapped[float] = mapped_column(Float, default=0.0)

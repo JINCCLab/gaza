@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, type Campaign, type Dataset, type Org } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 export default function BuyerPage() {
-  const { user, refresh } = useAuth();
+  const { user, refresh, getAccessToken } = useAuth();
   const [org, setOrg] = useState<Org | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -23,8 +24,8 @@ export default function BuyerPage() {
       const orgs = await api.orgs();
       const mine = orgs.find((o) => o.id === user.org_id) || null;
       setOrg(mine);
-      setCampaigns(await api.campaigns(user.id));
-      setDatasets(await api.datasets(user.id));
+      setCampaigns(await api.campaigns());
+      setDatasets(await api.datasets());
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
@@ -34,9 +35,19 @@ export default function BuyerPage() {
     void load();
   }, [load]);
 
-  if (!user) return <p className="muted">Loading…</p>;
+  if (!user) {
+    return (
+      <div className="panel">
+        <Link href="/sign-in">Sign in</Link> as <strong>buyer</strong>.
+      </div>
+    );
+  }
   if (user.role !== "buyer") {
-    return <div className="panel">Switch role to <strong>buyer</strong> in the header.</div>;
+    return (
+      <div className="panel">
+        Signed in as <strong>{user.role}</strong>. <Link href="/sign-in">Switch account</Link> to buyer.
+      </div>
+    );
   }
 
   return (
@@ -82,7 +93,7 @@ export default function BuyerPage() {
           disabled={org?.kyb_status !== "approved"}
           onClick={async () => {
             try {
-              const c = await api.createCampaign(user.id, {
+              const c = await api.createCampaign({
                 title,
                 description: desc,
                 data_type: "osint_label",
@@ -134,7 +145,7 @@ export default function BuyerPage() {
                     className="secondary"
                     onClick={async () => {
                       try {
-                        const d = await api.exportDataset(user.id, c.id);
+                        const d = await api.exportDataset(c.id);
                         setMsg(
                           `Dataset v${d.version} exported (${d.item_count} items). Download below.`
                         );
@@ -166,8 +177,9 @@ export default function BuyerPage() {
                   e.preventDefault();
                   // FileResponse needs auth header — fetch blob
                   void (async () => {
+                    const token = await getAccessToken();
                     const res = await fetch(api.downloadUrl(d.id), {
-                      headers: { "X-User-Id": String(user.id) },
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
                     });
                     if (!res.ok) {
                       setErr(await res.text());

@@ -5,6 +5,7 @@ export type User = {
   email: string;
   display_name: string;
   role: string;
+  auth_subject: string | null;
   org_id: number | null;
   credit_balance: number;
   redeem_reserve: number;
@@ -85,16 +86,36 @@ export type Ledger = {
   created_at: string;
 };
 
-async function request<T>(
-  path: string,
-  opts: RequestInit & { userId?: number } = {}
-): Promise<T> {
-  const { userId, headers, ...rest } = opts;
+export type AuthConfig = {
+  mode: "clerk" | "dev";
+  configured_mode: string;
+  clerk_ready: boolean;
+  message: string;
+  has_clerk_publishable_key: boolean;
+};
+
+type TokenGetter = () => Promise<string | null>;
+
+let tokenGetter: TokenGetter | null = null;
+
+/** Register the session token provider (Clerk getToken or local Bearer storage). */
+export function setAccessTokenGetter(getter: TokenGetter | null) {
+  tokenGetter = getter;
+}
+
+export async function getAccessToken(): Promise<string | null> {
+  if (!tokenGetter) return null;
+  return tokenGetter();
+}
+
+async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const { headers, ...rest } = opts;
+  const token = await getAccessToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...rest,
     headers: {
       "Content-Type": "application/json",
-      ...(userId != null ? { "X-User-Id": String(userId) } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(headers || {}),
     },
   });
@@ -106,7 +127,7 @@ async function request<T>(
     } catch {
       /* ignore */
     }
-    throw new Error(detail);
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -114,61 +135,65 @@ async function request<T>(
 
 export const api = {
   base: API_BASE,
-  seed: () => request<{ seeded: boolean; users?: Record<string, { id: number }> }>("/api/seed", { method: "POST" }),
+  authConfig: () => request<AuthConfig>("/api/auth/config"),
+  personas: () => request<User[]>("/api/auth/personas"),
+  devLogin: (email: string) =>
+    request<{ access_token: string; user: User; auth_mode: string }>("/api/auth/dev-login", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  seed: () =>
+    request<{ seeded: boolean; users?: Record<string, { id: number }> }>("/api/seed", {
+      method: "POST",
+    }),
+  me: () => request<User>("/api/me"),
   users: () => request<User[]>("/api/users"),
-  me: (userId: number) => request<User>("/api/me", { userId }),
   orgs: () => request<Org[]>("/api/orgs"),
-  decideKyb: (userId: number, orgId: number, approve: boolean, notes?: string) =>
+  decideKyb: (orgId: number, approve: boolean, notes?: string) =>
     request<Org>(`/api/orgs/${orgId}/kyb`, {
       method: "POST",
-      userId,
       body: JSON.stringify({ approve, notes }),
     }),
-  campaigns: (userId: number, status?: string) =>
-    request<Campaign[]>(`/api/campaigns${status ? `?status=${status}` : ""}`, { userId }),
-  createCampaign: (userId: number, body: Record<string, unknown>) =>
-    request<Campaign>("/api/campaigns", { method: "POST", userId, body: JSON.stringify(body) }),
-  decideCampaign: (userId: number, id: number, approve: boolean, notes?: string) =>
+  campaigns: (status?: string) =>
+    request<Campaign[]>(`/api/campaigns${status ? `?status=${status}` : ""}`),
+  createCampaign: (body: Record<string, unknown>) =>
+    request<Campaign>("/api/campaigns", { method: "POST", body: JSON.stringify(body) }),
+  decideCampaign: (id: number, approve: boolean, notes?: string) =>
     request<Campaign>(`/api/campaigns/${id}/decide`, {
       method: "POST",
-      userId,
       body: JSON.stringify({ approve, notes }),
     }),
-  submissions: (userId: number, status?: string) =>
-    request<Submission[]>(`/api/submissions${status ? `?status=${status}` : ""}`, { userId }),
-  createSubmission: (userId: number, body: Record<string, unknown>) =>
-    request<Submission>("/api/submissions", { method: "POST", userId, body: JSON.stringify(body) }),
-  reviewQueue: (userId: number) => request<Submission[]>("/api/review-queue", { userId }),
-  review: (userId: number, id: number, body: Record<string, unknown>) =>
+  submissions: (status?: string) =>
+    request<Submission[]>(`/api/submissions${status ? `?status=${status}` : ""}`),
+  createSubmission: (body: Record<string, unknown>) =>
+    request<Submission>("/api/submissions", { method: "POST", body: JSON.stringify(body) }),
+  reviewQueue: () => request<Submission[]>("/api/review-queue"),
+  review: (id: number, body: Record<string, unknown>) =>
     request<Submission>(`/api/submissions/${id}/review`, {
       method: "POST",
-      userId,
       body: JSON.stringify(body),
     }),
-  events: (userId: number, id: number) =>
+  events: (id: number) =>
     request<Array<{ stage: string; result: string; detail_json: Record<string, unknown> }>>(
-      `/api/submissions/${id}/events`,
-      { userId }
+      `/api/submissions/${id}/events`
     ),
-  exportDataset: (userId: number, campaignId: number) =>
-    request<Dataset>(`/api/campaigns/${campaignId}/export`, { method: "POST", userId }),
-  datasets: (userId: number) => request<Dataset[]>("/api/datasets", { userId }),
-  ledger: (userId: number) => request<Ledger[]>("/api/ledger", { userId }),
-  allowlist: (userId?: number, enabledOnly = false) =>
+  exportDataset: (campaignId: number) =>
+    request<Dataset>(`/api/campaigns/${campaignId}/export`, { method: "POST" }),
+  datasets: () => request<Dataset[]>("/api/datasets"),
+  ledger: () => request<Ledger[]>("/api/ledger"),
+  allowlist: (enabledOnly = false) =>
     request<Array<{ id: number; host: string; category: string; enabled: boolean }>>(
-      `/api/allowlist${enabledOnly ? "?enabled_only=true" : ""}`,
-      userId != null ? { userId } : {}
+      `/api/allowlist${enabledOnly ? "?enabled_only=true" : ""}`
     ),
-  addAllowlist: (userId: number, host: string, category = "admin_added") =>
+  addAllowlist: (host: string, category = "admin_added") =>
     request<{ id: number; host: string; category: string; enabled: boolean }>("/api/allowlist", {
       method: "POST",
-      userId,
       body: JSON.stringify({ host, category }),
     }),
-  setAllowlistEnabled: (userId: number, id: number, enabled: boolean) =>
+  setAllowlistEnabled: (id: number, enabled: boolean) =>
     request<{ id: number; host: string; category: string; enabled: boolean }>(
       `/api/allowlist/${id}/${enabled ? "enable" : "disable"}`,
-      { method: "POST", userId }
+      { method: "POST" }
     ),
   downloadUrl: (datasetId: number) => `${API_BASE}/api/datasets/${datasetId}/download`,
 };

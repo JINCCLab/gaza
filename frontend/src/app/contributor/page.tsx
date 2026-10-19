@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, type Campaign, type Ledger, type Submission } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -41,12 +42,12 @@ export default function ContributorPage() {
     if (!user || user.role !== "contributor") return;
     setErr(null);
     try {
-      const cams = await api.campaigns(user.id);
+      const cams = await api.campaigns();
       setCampaigns(cams);
       if (cams[0] && campaignId === "") setCampaignId(cams[0].id);
-      setSubs(await api.submissions(user.id));
-      setLedger(await api.ledger(user.id));
-      setHosts(await api.allowlist(user.id, true));
+      setSubs(await api.submissions());
+      setLedger(await api.ledger());
+      setHosts(await api.allowlist(true));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
@@ -56,11 +57,18 @@ export default function ContributorPage() {
     void load();
   }, [load]);
 
-  if (!user) return <p className="muted">Loading…</p>;
+  if (!user) {
+    return (
+      <div className="panel">
+        <Link href="/sign-in">Sign in</Link> as <strong>contributor</strong>.
+      </div>
+    );
+  }
   if (user.role !== "contributor") {
     return (
       <div className="panel">
-        Switch role to <strong>contributor</strong> in the header.
+        Signed in as <strong>{user.role}</strong>.{" "}
+        <Link href="/sign-in">Switch account</Link> to contributor.
       </div>
     );
   }
@@ -172,7 +180,7 @@ export default function ContributorPage() {
             setAllowlistErr(null);
             setErr(null);
             try {
-              const s = await api.createSubmission(user.id, {
+              const s = await api.createSubmission({
                 campaign_id: selected.id,
                 source_url: sourceUrl,
                 labels: {

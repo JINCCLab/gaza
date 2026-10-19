@@ -11,7 +11,7 @@ from app.seed import seed_demo
 app = FastAPI(
     title="data_platform Phase-0 API",
     description="OSINT vertical slice: KYB → campaign → submit → verify → credit → export",
-    version="0.1.1",
+    version="0.2.0",
 )
 
 app.add_middleware(
@@ -43,18 +43,23 @@ def on_startup() -> None:
 
 @app.get("/api/health", response_model=HealthOut)
 def health() -> HealthOut:
+    mode = settings.resolved_auth_mode()
+    stubbed = [
+        "kyb_status_flag_only",
+        "verification_stages_1_7_heuristic",
+        "fraud_synthetic_scores_stub",
+        "no_redis_worker_sync_pipeline",
+        "no_s3_local_exports_dir",
+        "no_onchain_token",
+        "no_cv_template",
+        "allowlist_v0_founder_may_expand",
+    ]
+    if mode == "dev":
+        stubbed.insert(0, "auth_dev_jwt_fallback_set_clerk_keys_for_prod")
+    else:
+        stubbed.insert(0, f"auth_clerk_mode_active")
     return HealthOut(
         status="ok",
         database=settings.database_url.split("://")[0],
-        stubbed=[
-            "auth_header_demo_not_clerk",
-            "kyb_status_flag_only",
-            "verification_stages_1_7_heuristic",
-            "fraud_synthetic_scores_stub",
-            "no_redis_worker_sync_pipeline",
-            "no_s3_local_exports_dir",
-            "no_onchain_token",
-            "no_cv_template",
-            "allowlist_v0_founder_may_expand",
-        ],
+        stubbed=stubbed,
     )
