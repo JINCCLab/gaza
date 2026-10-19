@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 
 # --- Auth / identity (demo header-based) ---
@@ -57,7 +55,7 @@ class CampaignCreate(BaseModel):
     data_type: str = "osint_label"
     data_class: str = "structured_osint"
     target_region: str = "en_us_asia"
-    requirements_json: dict[str, Any] = Field(
+    requirements_json: Dict[str, Any] = Field(
         default_factory=lambda: {
             "event_types": ["military_exercise", "equipment_display", "official_briefing"],
             "location_granularity": "public_city_region",
@@ -79,7 +77,7 @@ class CampaignOut(BaseModel):
     data_type: str
     data_class: str
     target_region: str
-    requirements_json: dict[str, Any]
+    requirements_json: Dict[str, Any]
     synthetic_allowed: bool
     target_quantity: int
     unit_reward: float
@@ -122,8 +120,8 @@ class SubmissionOut(BaseModel):
     campaign_id: int
     contributor_id: int
     source_url: str
-    labels_json: dict[str, Any]
-    metadata_json: dict[str, Any]
+    labels_json: Dict[str, Any]
+    metadata_json: Dict[str, Any]
     file_hash: Optional[str] = None
     quality_score: Optional[float] = None
     fraud_score: Optional[float] = None
@@ -148,7 +146,7 @@ class VerificationEventOut(BaseModel):
     submission_id: int
     stage: str
     result: str
-    detail_json: dict[str, Any]
+    detail_json: Dict[str, Any]
     actor_id: Optional[int] = None
     created_at: datetime
 
@@ -180,7 +178,7 @@ class DatasetOut(BaseModel):
     version: int
     item_count: int
     export_storage_key: Optional[str] = None
-    manifest_json: dict[str, Any]
+    manifest_json: Dict[str, Any]
     created_at: datetime
     download_url: Optional[str] = None
 
@@ -204,4 +202,4 @@ class AllowlistHostCreate(BaseModel):
 class HealthOut(BaseModel):
     status: str
     database: str
-    stubbed: list[str]
+    stubbed: List[str]

@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+from typing import Tuple
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
@@ -18,7 +17,7 @@ def normalize_host(url_or_host: str) -> str:
     return host
 
 
-def is_host_allowed(db: Session, source_url: str) -> tuple[bool, str]:
+def is_host_allowed(db: Session, source_url: str) -> Tuple[bool, str]:
     host = normalize_host(source_url)
     if not host:
         return False, ""

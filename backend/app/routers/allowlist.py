@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -10,7 +12,7 @@ from app.services.allowlist import normalize_host
 router = APIRouter(prefix="/api/allowlist", tags=["allowlist"])
 
 
-@router.get("", response_model=list[AllowlistHostOut])
+@router.get("", response_model=List[AllowlistHostOut])
 def list_hosts(db: Session = Depends(get_db)):
     return db.query(AllowlistHost).order_by(AllowlistHost.host).all()
 

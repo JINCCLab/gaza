@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -14,7 +13,7 @@ def build_dataset_export(
     db: Session,
     *,
     campaign: Campaign,
-    actor_id: int | None = None,
+    actor_id: Optional[int] = None,
 ) -> Dataset:
     accepted = (
         db.query(Submission)

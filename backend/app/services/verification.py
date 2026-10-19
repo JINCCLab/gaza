@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 import hashlib
-from typing import Any
+from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
@@ -12,7 +10,7 @@ from app.services.allowlist import is_host_allowed
 REQUIRED_LABEL_KEYS = ("event_type", "location_public", "event_time", "equipment_type")
 
 
-def _hash_payload(source_url: str, labels: dict[str, Any]) -> str:
+def _hash_payload(source_url: str, labels: Dict[str, Any]) -> str:
     blob = f"{source_url.strip().lower()}|{sorted(labels.items())}"
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -22,8 +20,8 @@ def _event(
     submission_id: int,
     stage: str,
     result: str,
-    detail: dict[str, Any] | None = None,
-    actor_id: int | None = None,
+    detail: Optional[Dict[str, Any]] = None,
+    actor_id: Optional[int] = None,
 ) -> VerificationEvent:
     ev = VerificationEvent(
         submission_id=submission_id,

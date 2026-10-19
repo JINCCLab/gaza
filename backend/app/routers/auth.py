@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -20,12 +22,12 @@ def me(user: User = Depends(get_current_user)):
     return user
 
 
-@router.get("/users", response_model=list[UserOut])
+@router.get("/users", response_model=List[UserOut])
 def list_users(db: Session = Depends(get_db)):
     """Demo helper: list seed users for role switcher."""
     return db.query(User).order_by(User.id).all()
 
 
-@router.get("/orgs", response_model=list[OrgOut])
+@router.get("/orgs", response_model=List[OrgOut])
 def list_orgs(db: Session = Depends(get_db)):
     return db.query(Organization).order_by(Organization.id).all()

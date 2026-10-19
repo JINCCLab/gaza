@@ -4,7 +4,7 @@ How to run the first coding slice and walk the happy path.
 
 ## Prerequisites
 
-- Python 3.12+
+- Python **3.9+** (backend uses `Optional`/`List`/`Dict` — FastAPI-safe on 3.9; no PEP 604 `X | Y`)
 - Node 20+
 - Repo branch with `backend/` + `frontend/` (this slice)
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -39,11 +40,11 @@ def export_campaign(
     return _with_url(dataset)
 
 
-@router.get("/datasets", response_model=list[DatasetOut])
+@router.get("/datasets", response_model=List[DatasetOut])
 def list_datasets(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-    campaign_id: int | None = None,
+    campaign_id: Optional[int] = None,
 ):
     q = db.query(Dataset)
     if user.role == "buyer":

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List
 
 from pydantic_settings import BaseSettings
 
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{DATA_DIR / 'data_platform.db'}"
     export_dir: str = str(EXPORT_DIR)
     # Phase-0 allowlist stub — placeholder hosts; Admin can add more via API.
-    default_allowlist_hosts: list[str] = [
+    default_allowlist_hosts: List[str] = [
         "example.com",
         "www.example.com",
         "reuters.com",

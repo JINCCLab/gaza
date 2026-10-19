@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -49,12 +51,12 @@ def create_submission(
     return submission
 
 
-@router.get("/submissions", response_model=list[SubmissionOut])
+@router.get("/submissions", response_model=List[SubmissionOut])
 def list_submissions(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-    status: str | None = None,
-    campaign_id: int | None = None,
+    status: Optional[str] = None,
+    campaign_id: Optional[int] = None,
 ):
     q = db.query(Submission)
     if user.role == "contributor":
@@ -88,7 +90,7 @@ def get_submission(
     return s
 
 
-@router.get("/submissions/{submission_id}/events", response_model=list[VerificationEventOut])
+@router.get("/submissions/{submission_id}/events", response_model=List[VerificationEventOut])
 def submission_events(
     submission_id: int,
     db: Session = Depends(get_db),
@@ -107,7 +109,7 @@ def submission_events(
     )
 
 
-@router.get("/review-queue", response_model=list[SubmissionOut])
+@router.get("/review-queue", response_model=List[SubmissionOut])
 def review_queue(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_role("admin")),

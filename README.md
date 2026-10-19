@@ -6,10 +6,12 @@ Minimal end-to-end loop:
 
 Stack: **Next.js** (frontend) + **FastAPI** (API) + **SQLite** by default (Postgres via `DATABASE_URL` / optional `docker-compose.yml`).
 
+**Requires Python 3.9+** (uses `Optional`/`List` typing for FastAPI runtime annotations; no PEP 604 `X | Y`).
+
 ## Quick start
 
 ```bash
-# API
+# API (Python 3.9+)
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
@@ -31,7 +33,7 @@ cd backend && source .venv/bin/activate
 python scripts/smoke_e2e.py
 ```
 
-Full click-path: see [docs/mvp-slice-runbook.md](https://github.com/JINCCLab/gaza) in the Project store, or `/cursor/stores/.../docs/mvp-slice-runbook.md` when working in Cursor Project context.
+Full click-path: [docs/mvp-slice-runbook.md](./docs/mvp-slice-runbook.md) (also mirrored in the Project store docs).
 
 ## Stubbed vs real
 

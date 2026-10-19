@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -10,11 +12,11 @@ from app.services.credits import fund_campaign_pool
 router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
 
 
-@router.get("", response_model=list[CampaignOut])
+@router.get("", response_model=List[CampaignOut])
 def list_campaigns(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-    status: str | None = None,
+    status: Optional[str] = None,
 ):
     q = db.query(Campaign)
     if user.role == "buyer":

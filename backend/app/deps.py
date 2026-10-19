@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
@@ -6,7 +8,7 @@ from app.models import User
 
 
 def get_current_user(
-    x_user_id: int | None = Header(default=None, alias="X-User-Id"),
+    x_user_id: Optional[int] = Header(default=None, alias="X-User-Id"),
     db: Session = Depends(get_db),
 ) -> User:
     """Demo auth: pass X-User-Id header. Real Clerk/Supabase deferred."""

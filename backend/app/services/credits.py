@@ -1,4 +1,4 @@
-from __future__ import annotations
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -12,7 +12,7 @@ def fund_campaign_pool(
     campaign: Campaign,
     organization_id: int,
     amount: float,
-    actor_user_id: int | None = None,
+    actor_user_id: Optional[int] = None,
 ) -> None:
     """Record pool_fund. Fee stub: platform_fee_pct recorded separately, pool gets net."""
     fee = round(amount * settings.platform_fee_pct, 2)
