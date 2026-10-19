@@ -43,27 +43,39 @@ def is_cv_campaign(data_type: str) -> bool:
 
 
 def default_requirements(data_type: str) -> Dict[str, Any]:
-    if is_cv_campaign(data_type):
+    """Defaults from versioned ontology seed (falls back to hardcoded if registry missing)."""
+    try:
+        from app.ontology_registry import default_for_data_type, ontology_to_requirements
+
+        return ontology_to_requirements(default_for_data_type(data_type))
+    except Exception:  # noqa: BLE001 — keep create path resilient
+        if is_cv_campaign(data_type):
+            return {
+                "categories": list(CV_DEFAULT_CATEGORIES),
+                "annotation_guide_en": (
+                    "Annotate whitelist public scenes only (parade, museum, official promo, "
+                    "public airshow, open training viewing). Provide category, caption, and "
+                    "optional normalized bboxes (x,y,w,h in 0–1). No conflict-zone field collection. "
+                    "synthetic_allowed defaults false."
+                ),
+                "bbox_normalized": True,
+                "media_sources": ["upload", "allowlisted_url"],
+            }
         return {
-            "categories": list(CV_DEFAULT_CATEGORIES),
-            "annotation_guide_en": (
-                "Annotate whitelist public scenes only (parade, museum, official promo, "
-                "public airshow, open training viewing). Provide category, caption, and "
-                "optional normalized bboxes (x,y,w,h in 0–1). No conflict-zone field collection. "
-                "synthetic_allowed defaults false."
+            "event_types": [
+                "military_exercise",
+                "equipment_display",
+                "official_briefing",
+                "port_call_public",
+                "airshow_public",
+            ],
+            "location_granularity": "public_city_region",
+            "equipment_types": ["aircraft", "naval", "ground", "missile_system_public", "unknown"],
+            "label_guide_en": (
+                "Tag public open-source items only. Use public city/region location. "
+                "Include source URL from allowlisted hosts."
             ),
-            "bbox_normalized": True,
-            "media_sources": ["upload", "allowlisted_url"],
         }
-    return {
-        "event_types": ["military_exercise", "equipment_display", "official_briefing"],
-        "location_granularity": "public_city_region",
-        "equipment_types": ["aircraft", "naval", "ground", "unknown"],
-        "label_guide_en": (
-            "Tag public open-source items only. Use public city/region location. "
-            "Include source URL from allowlisted hosts."
-        ),
-    }
 
 
 def default_data_class(data_type: str) -> str:

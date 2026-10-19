@@ -49,6 +49,8 @@ export type Campaign = {
   description: string;
   data_type: string;
   data_class: string;
+  ontology_id: string | null;
+  schema_version: string | null;
   target_region: string;
   requirements_json: Record<string, unknown>;
   synthetic_allowed: boolean;
@@ -60,6 +62,27 @@ export type Campaign = {
   status: string;
   admin_notes: string | null;
   created_at: string;
+};
+
+export type OntologySummary = {
+  ontology_id: string;
+  schema_version: string;
+  data_type: string | null;
+  title: string | null;
+  description: string | null;
+  is_default: boolean;
+};
+
+export type OntologyDetail = {
+  ontology_id: string;
+  schema_version: string;
+  data_type: string;
+  title: string;
+  description: string;
+  safety: Record<string, unknown>;
+  required_label_fields: string[];
+  required_submission_fields: string[];
+  fields: Record<string, unknown>;
 };
 
 export type Submission = {
@@ -291,4 +314,9 @@ export const api = {
     ),
   downloadUrl: (datasetId: number) => `${API_BASE}/api/datasets/${datasetId}/download`,
   adminAnalytics: () => request<AdminAnalytics>("/api/admin/analytics"),
+  ontologies: () => request<OntologySummary[]>("/api/ontology"),
+  ontology: (ontologyId: string, version?: string) =>
+    request<OntologyDetail>(
+      `/api/ontology/${encodeURIComponent(ontologyId)}${version ? `?version=${encodeURIComponent(version)}` : ""}`
+    ),
 };

@@ -3,10 +3,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.campaign_types import default_requirements, validate_campaign_pair
+from app.campaign_types import validate_campaign_pair
 from app.database import get_db
 from app.deps import get_current_user, require_role
 from app.models import AuditLog, Campaign, Organization, User
+from app.ontology_registry import ontology_to_requirements, resolve_pin
 from app.schemas import CampaignCreate, CampaignDecision, CampaignOut
 from app.services.credits import fund_campaign_pool
 
@@ -48,9 +49,21 @@ def create_campaign(
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
+    try:
+        ontology_id, schema_version, onto_doc = resolve_pin(
+            data_type, body.ontology_id, body.schema_version
+        )
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e)) from e
+
     requirements = body.requirements_json or {}
     if not requirements:
-        requirements = default_requirements(data_type)
+        requirements = ontology_to_requirements(onto_doc)
+    else:
+        # Ensure pin metadata is visible on the campaign requirements blob
+        requirements = dict(requirements)
+        requirements.setdefault("ontology_id", ontology_id)
+        requirements.setdefault("schema_version", schema_version)
 
     # Phase-0: synthetic_allowed stays false unless explicitly requested (CV default locked).
     synthetic_allowed = bool(body.synthetic_allowed)
@@ -61,6 +74,8 @@ def create_campaign(
         description=body.description,
         data_type=data_type,
         data_class=data_class,
+        ontology_id=ontology_id,
+        schema_version=schema_version,
         target_region=body.target_region,
         requirements_json=requirements,
         synthetic_allowed=synthetic_allowed,
