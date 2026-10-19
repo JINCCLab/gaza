@@ -125,4 +125,6 @@ def list_orgs(
     if creds and creds.credentials:
         claims = verify_access_token(creds.credentials)
         upsert_user_from_claims(db, claims)
-    return db.query(Organization).order_by(Organization.id).all()
+    from app.routers.orgs import org_to_out
+
+    return [org_to_out(o) for o in db.query(Organization).order_by(Organization.id).all()]

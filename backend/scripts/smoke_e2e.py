@@ -51,17 +51,64 @@ def wait_verified(
     )
 
 
-def ensure_kyb(c: httpx.Client, admin_h: dict, org_id: int) -> None:
+def ensure_kyb(c: httpx.Client, admin_h: dict, buyer_h: dict, org_id: int) -> dict:
+    """Buyer submits KYB stub packet (meta + upload), then admin approves with KO memo."""
     org = c.get(f"/api/orgs/{org_id}", headers=admin_h)
-    # get may 403 for admin? admin can get — if pending, approve
-    # use KYB endpoint idempotently
+    org.raise_for_status()
+    if org.json().get("kyb_status") == "approved":
+        return org.json()
+
+    # Upload lightweight stub file
+    stub = b"KYB stub certificate for smoke test\n"
+    up = c.post(
+        f"/api/orgs/{org_id}/kyb/upload",
+        headers=buyer_h,
+        files={"file": ("kyb-smoke.txt", io.BytesIO(stub), "text/plain")},
+    )
+    up.raise_for_status()
+    uploaded = up.json()
+    assert uploaded.get("storage_key", "").startswith(f"kyb/org{org_id}/"), uploaded
+
+    packet = c.post(
+        f"/api/orgs/{org_id}/kyb/packet",
+        headers=buyer_h,
+        json={
+            "legal_name": "Smoke Buyer Org LLC",
+            "registration_id": "REG-SMOKE-001",
+            "document_url": "https://example.com/kyb-stub.pdf",
+            "storage_key": uploaded["storage_key"],
+            "filename": uploaded["filename"],
+            "content_type": uploaded["content_type"],
+        },
+    )
+    packet.raise_for_status()
+    body = packet.json()
+    assert body["kyb_packet_ready"] is True, body
+    assert body["kyb_legal_name"] == "Smoke Buyer Org LLC", body
+
+    # Admin can download uploaded stub
+    dl = c.get(f"/api/orgs/{org_id}/kyb/document", headers=admin_h)
+    dl.raise_for_status()
+    assert b"KYB stub" in dl.content
+
+    # Non-admin outsider forbidden on decide; buyer cannot decide
+    forbidden = c.post(
+        f"/api/orgs/{org_id}/kyb",
+        headers=buyer_h,
+        json={"approve": True, "notes": "should fail"},
+    )
+    assert forbidden.status_code == 403, forbidden.text
+
     r = c.post(
         f"/api/orgs/{org_id}/kyb",
         headers=admin_h,
-        json={"approve": True, "notes": "smoke"},
+        json={"approve": True, "notes": "스모크 KYB 승인 — 문서 스텁 확인"},
     )
     r.raise_for_status()
-    assert r.json()["kyb_status"] == "approved"
+    approved = r.json()
+    assert approved["kyb_status"] == "approved", approved
+    assert approved["kyb_notes"] and "스모크" in approved["kyb_notes"], approved
+    return approved
 
 
 def smoke_osint(c: httpx.Client, admin_h: dict, buyer_h: dict, contrib_h: dict) -> dict:
@@ -322,7 +369,7 @@ def main() -> None:
     contrib_h, contrib = login(c, "contributor@demo.local")
     org_id = buyer["org_id"]
     assert org_id, buyer
-    ensure_kyb(c, admin_h, org_id)
+    kyb = ensure_kyb(c, admin_h, buyer_h, org_id)
 
     hosts = c.get("/api/allowlist", headers=admin_h).json()
     enabled = [h for h in hosts if h.get("enabled", True)]
@@ -368,6 +415,12 @@ def main() -> None:
                     "accept_rate": a["funnel"]["accept_rate"],
                     "rewards_granted": a["credits"]["rewards_granted_total"],
                     "per_campaign": len(a["per_campaign"]),
+                },
+                "kyb": {
+                    "status": kyb["kyb_status"],
+                    "packet_ready": kyb.get("kyb_packet_ready"),
+                    "legal_name": kyb.get("kyb_legal_name"),
+                    "registration_id": kyb.get("kyb_registration_id"),
                 },
                 "allowlist_enabled": len(enabled),
                 "roles": {

@@ -31,6 +31,15 @@ class OrgOut(BaseModel):
     kyb_status: str
     intended_use: Optional[str] = None
     kyb_notes: Optional[str] = None
+    # KYB document stub packet (Phase-0; no vendor verification)
+    kyb_legal_name: Optional[str] = None
+    kyb_registration_id: Optional[str] = None
+    kyb_document_url: Optional[str] = None
+    kyb_document_storage_key: Optional[str] = None
+    kyb_document_filename: Optional[str] = None
+    kyb_document_content_type: Optional[str] = None
+    kyb_packet_submitted_at: Optional[datetime] = None
+    kyb_packet_ready: bool = False
     status: str
     created_at: datetime
 
@@ -42,8 +51,28 @@ class OrgCreate(BaseModel):
     intended_use: str
 
 
+class KybPacketSubmit(BaseModel):
+    """Buyer KYB stub: company metadata + optional file URL and/or prior upload storage_key."""
+
+    legal_name: str
+    registration_id: str
+    document_url: Optional[str] = None
+    storage_key: Optional[str] = None
+    filename: Optional[str] = None
+    content_type: Optional[str] = None
+
+
+class KybDocumentUploadOut(BaseModel):
+    storage_key: str
+    filename: str
+    content_type: str
+    size_bytes: int
+    sha256: str
+
+
 class KybDecision(BaseModel):
     approve: bool
+    # Admin internal memo (KO OK)
     notes: Optional[str] = None
 
 

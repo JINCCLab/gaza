@@ -58,6 +58,14 @@ class Organization(Base):
     kyb_status: Mapped[str] = mapped_column(String(32), default="pending")  # pending|approved|rejected
     intended_use: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     kyb_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Phase-0 KYB document stub (no vendor ID verification)
+    kyb_legal_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    kyb_registration_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    kyb_document_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    kyb_document_storage_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    kyb_document_filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    kyb_document_content_type: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    kyb_packet_submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

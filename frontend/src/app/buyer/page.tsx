@@ -19,6 +19,11 @@ export default function BuyerPage() {
   );
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [legalName, setLegalName] = useState("Demo Buyer Org LLC");
+  const [registrationId, setRegistrationId] = useState("REG-DEMO-001");
+  const [docUrl, setDocUrl] = useState("https://example.com/kyb-certificate-stub.pdf");
+  const [kybFile, setKybFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const applyTemplateDefaults = (kind: TemplateKind) => {
     setTemplate(kind);
@@ -92,11 +97,82 @@ export default function BuyerPage() {
           <p className="muted">No org linked.</p>
         )}
         {org?.kyb_status !== "approved" && (
-          <p className="muted">Ask Admin to approve KYB before creating a campaign.</p>
+          <p className="muted">
+            Submit the KYB stub packet below, then ask Admin to approve before creating a campaign.
+          </p>
         )}
         {msg && <p className="success">{msg}</p>}
         {err && <p className="error">{err}</p>}
       </div>
+
+      {org && org.kyb_status !== "approved" && (
+        <div className="panel">
+          <h3>KYB document stub</h3>
+          <p className="muted">
+            Phase-0 stub only — company name, registration id, and a file URL or upload. No real ID
+            verification vendor.
+          </p>
+          {org.kyb_packet_ready && (
+            <p className="success">
+              Packet ready
+              {org.kyb_legal_name ? ` · ${org.kyb_legal_name}` : ""}
+              {org.kyb_registration_id ? ` · ${org.kyb_registration_id}` : ""}
+            </p>
+          )}
+          <label>Legal / company name</label>
+          <input value={legalName} onChange={(e) => setLegalName(e.target.value)} />
+          <label>Registration id</label>
+          <input value={registrationId} onChange={(e) => setRegistrationId(e.target.value)} />
+          <label>Document URL (optional if you upload a file)</label>
+          <input value={docUrl} onChange={(e) => setDocUrl(e.target.value)} placeholder="https://…" />
+          <label>Or upload stub file (PDF / PNG / JPEG / TXT)</label>
+          <input
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,application/pdf,image/*,text/plain"
+            onChange={(e) => setKybFile(e.target.files?.[0] ?? null)}
+          />
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={async () => {
+              setErr(null);
+              setUploading(true);
+              try {
+                let storage_key: string | undefined;
+                let filename: string | undefined;
+                let content_type: string | undefined;
+                if (kybFile) {
+                  const up = await api.uploadKybDocument(org.id, kybFile);
+                  storage_key = up.storage_key;
+                  filename = up.filename;
+                  content_type = up.content_type;
+                }
+                const updated = await api.submitKybPacket(org.id, {
+                  legal_name: legalName,
+                  registration_id: registrationId,
+                  document_url: docUrl.trim() || undefined,
+                  storage_key,
+                  filename,
+                  content_type,
+                });
+                setOrg(updated);
+                setMsg(
+                  updated.kyb_packet_ready
+                    ? "KYB stub packet submitted — waiting for Admin review"
+                    : "KYB packet saved"
+                );
+                await load();
+              } catch (e) {
+                setErr(e instanceof Error ? e.message : String(e));
+              } finally {
+                setUploading(false);
+              }
+            }}
+          >
+            {uploading ? "Submitting…" : "Submit KYB stub packet"}
+          </button>
+        </div>
+      )}
 
       <div className="panel">
         <h3>Create campaign draft</h3>

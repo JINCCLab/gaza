@@ -22,8 +22,24 @@ export type Org = {
   kyb_status: string;
   intended_use: string | null;
   kyb_notes: string | null;
+  kyb_legal_name: string | null;
+  kyb_registration_id: string | null;
+  kyb_document_url: string | null;
+  kyb_document_storage_key: string | null;
+  kyb_document_filename: string | null;
+  kyb_document_content_type: string | null;
+  kyb_packet_submitted_at: string | null;
+  kyb_packet_ready: boolean;
   status: string;
   created_at: string;
+};
+
+export type KybDocumentUpload = {
+  storage_key: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
 };
 
 export type Campaign = {
@@ -203,6 +219,30 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ approve, notes }),
     }),
+  submitKybPacket: (
+    orgId: number,
+    body: {
+      legal_name: string;
+      registration_id: string;
+      document_url?: string;
+      storage_key?: string;
+      filename?: string;
+      content_type?: string;
+    }
+  ) =>
+    request<Org>(`/api/orgs/${orgId}/kyb/packet`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  uploadKybDocument: (orgId: number, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return request<KybDocumentUpload>(`/api/orgs/${orgId}/kyb/upload`, {
+      method: "POST",
+      body: fd,
+    });
+  },
+  kybDocumentUrl: (orgId: number) => `${API_BASE}/api/orgs/${orgId}/kyb/document`,
   campaigns: (status?: string) =>
     request<Campaign[]>(`/api/campaigns${status ? `?status=${status}` : ""}`),
   createCampaign: (body: Record<string, unknown>) =>

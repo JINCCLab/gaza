@@ -13,7 +13,7 @@ from app.services.storage import ensure_bucket, storage_health
 app = FastAPI(
     title="data_platform Phase-0 API",
     description="Phase-0 dual wedge: OSINT + CV templates — KYB → campaign → submit → verify → credit → export",
-    version="0.7.0",
+    version="0.8.0",
 )
 
 app.add_middleware(
@@ -54,7 +54,7 @@ def health() -> HealthOut:
     rstatus = redis_status()
     s_backend, s_status = storage_health()
     stubbed = [
-        "kyb_status_flag_only",
+        "kyb_document_stub_no_id_vendor",
         "verification_stages_1_7_heuristic",
         "fraud_synthetic_scores_stub",
         "no_onchain_token",

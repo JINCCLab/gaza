@@ -36,3 +36,35 @@ def ensure_sqlite_columns(engine: Engine) -> None:
                 conn.execute(
                     text("ALTER TABLE submissions ADD COLUMN storage_key VARCHAR(512)")
                 )
+        if "organizations" in tables:
+            ocols = {c["name"] for c in insp.get_columns("organizations")}
+            org_adds = [
+                ("kyb_legal_name", "ALTER TABLE organizations ADD COLUMN kyb_legal_name VARCHAR(255)"),
+                (
+                    "kyb_registration_id",
+                    "ALTER TABLE organizations ADD COLUMN kyb_registration_id VARCHAR(128)",
+                ),
+                (
+                    "kyb_document_url",
+                    "ALTER TABLE organizations ADD COLUMN kyb_document_url VARCHAR(1024)",
+                ),
+                (
+                    "kyb_document_storage_key",
+                    "ALTER TABLE organizations ADD COLUMN kyb_document_storage_key VARCHAR(512)",
+                ),
+                (
+                    "kyb_document_filename",
+                    "ALTER TABLE organizations ADD COLUMN kyb_document_filename VARCHAR(255)",
+                ),
+                (
+                    "kyb_document_content_type",
+                    "ALTER TABLE organizations ADD COLUMN kyb_document_content_type VARCHAR(128)",
+                ),
+                (
+                    "kyb_packet_submitted_at",
+                    "ALTER TABLE organizations ADD COLUMN kyb_packet_submitted_at DATETIME",
+                ),
+            ]
+            for col, ddl in org_adds:
+                if col not in ocols:
+                    conn.execute(text(ddl))
